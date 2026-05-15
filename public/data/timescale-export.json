@@ -1,0 +1,130 @@
+{
+  "config": {
+    "presentYear": 2000,
+    "anchorYearsBeforePresent": 13800000000,
+    "logBase": 10,
+    "futureYearsPerUnit": 100
+  },
+  "geologicalEpochs": [
+    {
+      "name": "Hadean",
+      "positionStart": 0.9523837286983377,
+      "positionEnd": 0.9469600090404872,
+      "description": "Molten Earth, Moon formation, first crust",
+      "rank": "eon",
+      "colour": "FF6B6B",
+      "fiveTownsRelevance": "Earth accretes, no rocks from this period survive"
+    },
+    {
+      "name": "Archean",
+      "positionStart": 0.9469600090404872,
+      "positionEnd": 0.9268295931926618,
+      "description": "First life: cyanobacteria, Stromatolites",
+      "rank": "eon",
+      "colour": "C9A227",
+      "fiveTownsRelevance": "No direct Five Towns record"
+    },
+    {
+      "name": "Proterozoic",
+      "positionStart": 0.9268295931926618,
+      "positionEnd": 0.8610978013298811,
+      "description": "Great Oxidation Event, Snowball Earth, first eukaryotes",
+      "rank": "eon",
+      "colour": "7FB069",
+      "fiveTownsRelevance": "Basement rocks may underlie area at depth"
+    },
+    {
+      "name": "Cambrian",
+      "positionStart": 0.8610978013298811,
+      "positionEnd": 0.8566275493013513,
+      "description": "Cambrian Explosion — rapid animal diversification",
+      "rank": "period",
+      "colour": "2E86AB",
+      "fiveTownsRelevance": "No Five Towns outcrops — area beneath sea"
+    },
+    {
+      "name": "Carboniferous",
+      "positionStart": 0.843695805979231,
+      "positionEnd": 0.8358606491083264,
+      "description": "Coal Age — Yorkshire Coal Measures deposited",
+      "rank": "period",
+      "colour": "3D3D3D",
+      "fiveTownsRelevance": "⭐ PRIMARY: Coal Measures underlie Five Towns at depth"
+    },
+    {
+      "name": "Permian",
+      "positionStart": 0.8358606491083264,
+      "positionEnd": 0.8285337077541067,
+      "description": "Desert environments, Magnesian Limestone",
+      "rank": "period",
+      "colour": "FF6B35",
+      "fiveTownsRelevance": "⭐ Yorkshire Magnesian Limestone surface geology east of Five Towns"
+    },
+    {
+      "name": "Jurassic",
+      "positionStart": 0.8189505412696995,
+      "positionEnd": 0.8048782369782223,
+      "description": "Dinosaur era, Yorkshire coast limestone and clays",
+      "rank": "period",
+      "colour": "2ECC71",
+      "fiveTownsRelevance": "⭐ Jurassic Oxfordian limestone — dinosaur fossils at Whitby, Scarborough"
+    },
+    {
+      "name": "Quaternary",
+      "positionStart": 0.632317175710898,
+      "positionEnd": 0,
+      "description": "Ice Age — Pleistocene glaciations, Devensian, Holocene",
+      "rank": "period",
+      "colour": "DFE6E9",
+      "fiveTownsRelevance": "⭐ Devensian glaciation deposited Yorkshire till; post-glacial peat"
+    }
+  ],
+  "politicalEpochs": [
+    {
+      "name": "Roman Britain",
+      "positionStart": 0.3247494641248925,
+      "positionEnd": 0.31424351203248724,
+      "description": "Roman conquest 43 AD, roads, forts, 400-year occupation",
+      "fiveTownsRelevance": "⭐ Roman Causennae at Pontefract — Roman road passes through"
+    },
+    {
+      "name": "Norman-Medieval",
+      "positionStart": 0.29293711008977175,
+      "positionEnd": 0.3127972657885918,
+      "description": "Norman Conquest, feudal system, castles, monasteries",
+      "fiveTownsRelevance": "⭐ Doomsday Book 1086: Tanshelf (Pontefract), Leoperce (Castleford)"
+    },
+    {
+      "name": "Victorian",
+      "positionStart": 0.18977339568502005,
+      "positionEnd": 0.059375460614258725,
+      "description": "Industrial peak, railways, mining towns",
+      "fiveTownsRelevance": "⭐ Victorian: Coal mines at peak; Featherstone, Knottingley, Pontefract; railways connect all five towns"
+    },
+    {
+      "name": "Modern",
+      "positionStart": 0.059375460614258725,
+      "positionEnd": 0,
+      "description": "Post-war reconstruction, deindustrialisation, mining decline",
+      "fiveTownsRelevance": "1984 miners' strike: Featherstone violence; pit closures; economic transformation"
+    }
+  ],
+  "categoryColours": {
+    "bigbang": "FF00FF",
+    "stellar": "FFD700",
+    "geological": "8B4513",
+    "biological": "228B22",
+    "human": "FF6347",
+    "historical": "4169E1",
+    "political": "9932CC",
+    "modern": "20B2AA",
+    "hadean": "FF6B6B",
+    "archean": "C9A227",
+    "proterozoic": "7FB069",
+    "cambrian": "2E86AB",
+    "carboniferous": "3D3D3D",
+    "permian": "FF6B35",
+    "jurassic": "2ECC71",
+    "quaternary": "DFE6E9"
+  }
+}

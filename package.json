@@ -1,0 +1,45 @@
+{
+  "name": "place-time",
+  "version": "0.1.0",
+  "description": "Hexagonal geological-to-political spatial index with logarithmic time-space compression",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc",
+    "verify:hexalog": "tsx scripts/verify-hexalog.ts",
+    "ingest:geology": "tsx src/ingest/geology.ts",
+    "ingest:historical": "tsx src/ingest/historical.ts",
+    "ingest:boundaries": "tsx src/ingest/boundaries.ts",
+    "ingest:all": "npm run ingest:geology; npm run ingest:historical; npm run ingest:boundaries",
+    "build:timescale": "tsx scripts/build-timescale.ts",
+    "query": "tsx src/cli/query.ts",
+    "ollama:check": "curl -s http://localhost:11434/api/tags | jq ."
+  },
+  "keywords": [
+    "gis",
+    "geology",
+    "geopolitics",
+    "qgis",
+    "historical-maps",
+    "gerrymandering",
+    "h3",
+    "hexagonal-grid",
+    "ollama",
+    "embeddings"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@types/rbush": "^4.0.0",
+    "geojson": "^0.5.0",
+    "h3-js": "^4.4.0",
+    "ollama": "^0.6.3",
+    "rbush": "^4.0.1",
+    "tsx": "^4.22.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.14",
+    "@types/node": "^25.8.0"
+  }
+}
