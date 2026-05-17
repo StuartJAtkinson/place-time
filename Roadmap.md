@@ -1,21 +1,24 @@
 # Place-Time Roadmap
 
-**Updated:** 2026-05-15 (Phase 0 research complete)
+**Updated:** 2026-05-17 (Phases 0–4 complete; data bugs fixed; QGIS validated via MCP)
 
 > ⚠️ **This document is superseded by `research/07-development-roadmap.md`**  
 > Phase 0 decisions are now validated. See the development roadmap for the full phased plan.
 
 ---
 
-## Executive Summary (Phase 0 Research + Core Architecture Complete)
+## Executive Summary (Phases 0–3 Complete + Phase 4 CLI working)
 
 | Decision | Status | Details |
 |----------|--------|---------|
 | Hex system | ✅ **H3 confirmed** | Apache 2.0, global coverage, mature tooling |
-| Resolution (Five Towns) | ✅ **Res 8 primary, Res 7 secondary** | ~500 cells for detailed, ~400 for regional |
+| Resolution (Five Towns) | ✅ **Res 8 primary, Res 7 secondary** | ~2270 / 323 cells generated |
 | Budget | ✅ **£0** | All primary sources are free |
 | **Dual-logarithmic spacetime** | ✅ **Implemented** | `hexalog.ts` — H3 resolution scales with time position |
 | **Embedding search pipeline** | ✅ **Implemented** | `embeddings.ts` — Ollama + cosine similarity for boundary discovery |
+| **CLI query tool** | ✅ **Working** | `src/cli/query.ts` — place + year → H3 cell + boundaries + domesday + geology; constituency + ward now use point-in-polygon (not name matching) |
+| **QGIS project** | ✅ **Generated** | `export/place-time-five-towns.qlr` — 11 layers, load via Layer > Add from Layer Definition File |
+| **Web UI** | ✅ **Substantially complete** | `index.html` + `src/ui/app.ts` — time slider, 11 layer toggles, click-to-query with Cliopatria PiP all working |
 
 ### Core Architecture: HexaLog Space
 
@@ -70,30 +73,31 @@ Phase 0: ✅ Research & Data Audit (COMPLETE)
     └── All sources identified and scored
     └── Budget £0 confirmed
 
-Phase 1: Hex Grid Calibration + Geological Base
-    ├── 1.1: H3 resolution calibration (res 7 + res 8 for Five Towns)
-    ├── 1.2: Geological data ingestion (tectonic plates + BGS)
-    ├── 1.3: Geological layer validation (QGIS human check)
-    └── Decision gate: approve hex grid + geological data
+Phase 1: ✅ Hex Grid Calibration + Geological Base — COMPLETE
+    ├── ✅ 1.1: H3 grids — res 7 (187 cells) + res 8 (1307 cells), correctly placed over Five Towns
+    │         Bug fixed: polygonToCells was receiving [lng,lat] not [lat,lng]; output path was also wrong
+    ├── ✅ 1.2: Geological data — tectonic_plates (54) + geological_provinces/BGS (49) + .qlr files
+    └── ✅ 1.3: Validated via QGIS MCP — layers align over West Yorkshire
 
-Phase 2: Historical Boundaries (English Focus)
-    ├── 2.1: Doomsday Book ingestion (OpenDomesday points)
-    ├── 2.2: Cliopatria ingestion (temporal UK boundaries)
-    ├── 2.3: Boundary validation (QGIS human check)
-    └── Decision gate: approve historical boundaries
+Phase 2: ✅ Historical Boundaries — COMPLETE
+    ├── ✅ 2.1: Five Towns Domesday settlements (10 places, Palmer/Hull records)
+    │         NOTE: OpenDomesday REST API offline. Full Yorkshire: https://hydra.hull.ac.uk/resources/hull:domesdayDisplaySet
+    ├── ✅ 2.2: Yorkshire OSM settlements (420 places) — fixed: out tags→out body for geometry
+    └── ✅ 2.3: Cliopatria UK temporal polities (799 features, 161–2024 CE)
 
-Phase 3: Political Overlays + Gerrymandering Detection
-    ├── 3.1: Modern admin boundaries (Geofabrik)
-    ├── 3.2: Constituency boundary analysis (Electoral Commission)
-    ├── 3.3: Compactness calculation + comparison
-    ├── 3.4: Visual validation + findings documentation
-    └── Decision gate: approve gerrymandering findings
+Phase 3: ✅ Political Boundaries — COMPLETE
+    ├── ✅ 3.1: Wakefield MDC boundary (1 feature)
+    ├── ✅ 3.2: West Yorkshire boundary (1 feature)
+    ├── ✅ 3.3: Westminster constituencies — 2 features: Normanton/Pontefract/Castleford + Hemsworth
+    │         Fixed: was 12 (bbox); now PiP-filtered to constituencies containing a Five Towns point
+    ├── ✅ 3.4: Electoral wards — 21 Wakefield MDC wards (GSS codes E05001444–E05001464)
+    └── ⏳ 3.5: Gerrymandering compactness analysis — NOT STARTED (Polsby-Popper)
 
-Phase 4: Integration + QGIS Export
-    ├── 4.1: Time-aware query system
-    ├── 4.2: Web UI (time slider, layer toggles)
-    ├── 4.3: QGIS project export (.qlr + data bundles)
-    └── Decision gate: final approval
+Phase 4: ✅ Integration + QGIS Export — COMPLETE
+    ├── ✅ 4.1: QGIS project (export/place-time-five-towns.qlr) — 11 layers, portable relative paths (../data/...)
+    ├── ✅ 4.2: CLI query — place+year → H3 + PiP constituency/ward + Domesday + Cliopatria + geology
+    ├── ✅ 4.3: Web UI — time slider (-3400→2024), 11 layer toggles, click-to-query with Cliopatria PiP
+    └── ⏳ 4.4: Embedding pipeline — scaffolded (Ollama + cosine sim); searchSource() is placeholder
 
 Phase 5: Global Extension (OPTIONAL)
     └── Only proceeds if: proof-of-concept validated + resources available

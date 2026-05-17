@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<maplayers>
+  <maplayer geometry="Polygon" minScale="0" maxScale="1e+08" symbologyReference="0" type="vector" hasZ="0" hasM="0">
+    <id>admin:county-west-yorkshire</id>
+    <datasource>west-yorkshire.geojson</datasource>
+    <provider>ogr</provider>
+    <layername>West Yorkshire</layername>
+    <description>West Yorkshire boundary</description>
+    <srs>
+      <spatialrefsys nativeData="COORD_REF_SYS=1,CRS_ID=1,PROJ=0,ELLIPSOID=1,PROJ=+proj=longlat +datum=WGS84 +no_defs,CS=2,AXIS=Longitude,EAST,0,AXIS=Latitude,NORTH,0">
+        <proj>+proj=longlat +datum=WGS84 +no_defs</proj>
+        <srsid>3457</srsid>
+        <srid>4326</srid>
+        <authid>EPSG:4326</authid>
+        <description>WGS 84</description>
+        <projectionacronym>longlat</projectionacronym>
+        <ellipsoidacronym>WGS84</ellipsoidacronym>
+      </spatialrefsys>
+    </srs>
+    <renderer-v2 symbollevels="0" type="singleSymbol" enableorderby="0">
+      <symbols>
+        <symbol alpha="1" type="fill" name="0">
+          <layer enabled="1" pass="0" class="SimpleFill" locked="0">
+            <prop k="border_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+            <prop k="color" v="60,120,60,255"/>
+            <prop k="joinstyle" v="bevel"/>
+            <prop k="offset" v="0,0"/>
+            <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+            <prop k="offset_unit" v="MM"/>
+            <prop k="style" v="solid"/>
+            <prop k="border_color" v="30,80,30,255"/>
+            <prop k="border_width" v="2.5"/>
+            <prop k="border_width_unit" v="MM"/>
+          </layer>
+        </symbol>
+      </symbols>
+    </renderer-v2>
+    <blendMode>0</blendMode>
+    <layerOpacity>0.04</layerOpacity>
+    <customproperties>
+      <property key="layer_credits" value="ONS Open Geography Portal (OGL)"/>
+    </customproperties>
+  </maplayer>
+</maplayers>

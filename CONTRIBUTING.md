@@ -1,6 +1,6 @@
 # Contributing to Place-Time
 
-**Date:** 2026-05-15  
+**Date:** 2026-05-16 (updated — all ingest scripts working)  
 **Project:** H:\place-time  
 **Principle:** FOSS at heart, human-in-the-loop at decision gates
 
@@ -26,9 +26,34 @@ cd place-time
 # Install dependencies
 npm install
 
-# Verify installation
-npm run dev
+# Ingest all data (first time)
+npm run ingest:all
+
+# Get Cliopatria data (one-time setup — 44MB download)
+curl -L -o /tmp/cliopatria.zip https://raw.githubusercontent.com/Seshat-Global-History-Databank/cliopatria/main/cliopatria.geojson.zip
+unzip /tmp/cliopatria.zip -d /tmp/cliopatria_extracted
+python3 scripts/filter-cliopatria.py   # produces data/historical/cliopatria-uk.geojson
+npm run ingest:historical              # re-runs to pick up the new file and generate QLR
+
+# Verify with a query
+npm run query -- --place pontefract --year 1086
+
+# Start web UI
+npm run dev   # → http://localhost:5173
+
+# Generate QGIS project
+npm run build:qgis   # → export/place-time-five-towns.qlr
+# Then in QGIS: Layer > Add from Layer Definition File > select the .qlr
 ```
+
+### QGIS MCP Setup
+
+QGIS MCP allows Claude Code / OpenClaw to drive QGIS directly:
+1. Install the nkarasiak QGIS MCP plugin (see project memory / mcporter config)
+2. Open QGIS, then: **Plugins > QGIS MCP > Start Server**
+3. Verify: `mcporter call qgis.ping` → `{"pong": true}`
+
+Note: The plugin server must be re-started each QGIS session. Port 9876.
 
 ---
 

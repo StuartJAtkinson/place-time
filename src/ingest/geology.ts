@@ -33,7 +33,7 @@ async function fetchTectonicPlates(): Promise<GeoJSON.FeatureCollection> {
   console.log('Fetching tectonic plates from fraxen/tectonicplates...');
 
   // The repository has plates.geojson at the root
-  const url = 'https://raw.githubusercontent.com/fraxen/tectonicplates/main/ plates.geojson';
+  const url = 'https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_plates.json';
 
   try {
     const response = await fetch(url);
@@ -64,28 +64,46 @@ async function fetchTectonicPlates(): Promise<GeoJSON.FeatureCollection> {
 }
 
 /**
- * Fetch geological provinces from Zenodo (global tectonic data).
- * This is a larger dataset with more detailed province boundaries.
+ * Fetch UK bedrock geology from BGS OGC API (1:625k scale).
+ * Uses the Five Towns bounding box for the targeted query.
+ * Falls back to the placeholder if the API is unavailable.
  */
 async function fetchGeologicalProvinces(): Promise<GeoJSON.FeatureCollection> {
-  console.log('Fetching geological provinces from Zenodo...');
+  console.log('Fetching UK bedrock geology from BGS OGC API...');
 
-  // The Zenodo record contains shapefiles - we need to find the direct GeoJSON URL
-  // For now, we'll use the global_tectonics repository as a fallback
-  const url = 'https://raw.githubusercontent.com/dhasterok/global_tectonics/main/data/plates.geojson';
+  // BGS 1:625k bedrock geology — Five Towns bounding box
+  const BBOX = '-1.65,53.50,-1.10,53.95'; // generous West Yorkshire coverage
+  const BASE = 'https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock/items';
+  const MAX_FEATURES = 500;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      // Fallback: create placeholder with bounds
-      console.log('  Detailed provinces not available, using fallback');
-      return createFallbackProvinces();
-    }
+    const url = `${BASE}?bbox=${BBOX}&f=json&limit=${MAX_FEATURES}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) throw new Error(`BGS API ${response.status}`);
+
     const data = await response.json() as GeoJSON.FeatureCollection;
-    console.log(`  Loaded ${data.features.length} geological features`);
-    return data;
+    console.log(`  BGS bedrock: ${data.features.length} features`);
+
+    // Normalise feature properties
+    const features = data.features.map((f, i) => ({
+      ...f,
+      id: `geology:bgs:${f.properties?.objectid ?? i}`,
+      properties: {
+        name: f.properties?.lex_d ?? f.properties?.rcs_d ?? 'Unknown formation',
+        lex: f.properties?.lex ?? '',
+        rcs: f.properties?.rcs ?? '',
+        rockDescription: f.properties?.rcs_d ?? '',
+        rank: f.properties?.rank ?? '',
+        layerId: 'geology:province',
+        source: 'BGS 1:625k Bedrock Geology (OGL v3)',
+        validFrom: null,
+        validTo: null,
+      },
+    }));
+
+    return { type: 'FeatureCollection', features };
   } catch (err) {
-    console.log('  Falling back to simplified provinces');
+    console.warn(`  BGS API unavailable (${err instanceof Error ? err.message : err}), using placeholder`);
     return createFallbackProvinces();
   }
 }
@@ -209,8 +227,7 @@ export async function ingestGeology(): Promise<void> {
   console.log('  npm run ingest:boundaries  - Load modern administrative boundaries');
 }
 
-// Run if executed directly
-if (import.meta.url === process.argv[1]) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   ingestGeology().catch(console.error);
 }
 

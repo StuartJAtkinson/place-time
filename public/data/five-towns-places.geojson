@@ -1,0 +1,80 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pontefract",
+        "lat": 53.699,
+        "lng": -1.312
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.312,
+          53.699
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Knottingley",
+        "lat": 53.712,
+        "lng": -1.253
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.253,
+          53.712
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Featherstone",
+        "lat": 53.681,
+        "lng": -1.289
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.289,
+          53.681
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Castleford",
+        "lat": 53.727,
+        "lng": -1.283
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.283,
+          53.727
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Normanton",
+        "lat": 53.703,
+        "lng": -1.223
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.223,
+          53.703
+        ]
+      }
+    }
+  ]
+}

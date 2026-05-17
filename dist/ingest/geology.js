@@ -18,7 +18,7 @@ const PUBLIC_DIR = join(__dirname, '../../public');
 async function fetchTectonicPlates() {
     console.log('Fetching tectonic plates from fraxen/tectonicplates...');
     // The repository has plates.geojson at the root
-    const url = 'https://raw.githubusercontent.com/fraxen/tectonicplates/main/ plates.geojson';
+    const url = 'https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_plates.json';
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -53,7 +53,7 @@ async function fetchGeologicalProvinces() {
     console.log('Fetching geological provinces from Zenodo...');
     // The Zenodo record contains shapefiles - we need to find the direct GeoJSON URL
     // For now, we'll use the global_tectonics repository as a fallback
-    const url = 'https://raw.githubusercontent.com/dhasterok/global_tectonics/main/data/plates.geojson';
+    const url = 'https://raw.githubusercontent.com/dhasterok/global_tectonics/master/data/plates.geojson';
     try {
         const response = await fetch(url);
         if (!response.ok) {

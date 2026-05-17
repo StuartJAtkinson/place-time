@@ -10,7 +10,8 @@
     "ingest:geology": "tsx src/ingest/geology.ts",
     "ingest:historical": "tsx src/ingest/historical.ts",
     "ingest:boundaries": "tsx src/ingest/boundaries.ts",
-    "ingest:all": "npm run ingest:geology; npm run ingest:historical; npm run ingest:boundaries",
+    "ingest:all": "npm run ingest:geology && npm run ingest:historical && npm run ingest:boundaries",
+    "build:qgis": "tsx scripts/generate-qgis-project.ts",
     "build:timescale": "tsx scripts/build-timescale.ts",
     "query": "tsx src/cli/query.ts",
     "ollama:check": "curl -s http://localhost:11434/api/tags | jq ."
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.14",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^25.8.0"
   }
 }

@@ -1,0 +1,225 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "domesday:pontefract",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.3093,
+          53.6934
+        ]
+      },
+      "properties": {
+        "domesdayName": "Tanshelf",
+        "modernName": "Pontefract",
+        "hundred": "Barkston",
+        "households": 100,
+        "notes": "Major settlement; became Pontefract (Broken Bridge) after Norman castle",
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:castleford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.3545,
+          53.7243
+        ]
+      },
+      "properties": {
+        "domesdayName": "Leodisce / Leoperce",
+        "modernName": "Castleford",
+        "hundred": "Barkston",
+        "households": 60,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:featherstone",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.368,
+          53.6778
+        ]
+      },
+      "properties": {
+        "domesdayName": "Fernesforde",
+        "modernName": "Featherstone",
+        "hundred": "Osgoldcross",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:knottingley",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.2437,
+          53.7109
+        ]
+      },
+      "properties": {
+        "domesdayName": "Chenulvelai / Notlage",
+        "modernName": "Knottingley",
+        "hundred": "Barkston",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:normanton",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.4194,
+          53.6987
+        ]
+      },
+      "properties": {
+        "domesdayName": "Normentone",
+        "modernName": "Normanton",
+        "hundred": "Agbrigg",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:ackworth",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.3465,
+          53.6648
+        ]
+      },
+      "properties": {
+        "domesdayName": "Acvrde",
+        "modernName": "Ackworth",
+        "hundred": "Osgoldcross",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:hemsworth",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.3518,
+          53.6163
+        ]
+      },
+      "properties": {
+        "domesdayName": "Hamelsword",
+        "modernName": "Hemsworth",
+        "hundred": "Osgoldcross",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:badsworth",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.298,
+          53.6573
+        ]
+      },
+      "properties": {
+        "domesdayName": "Baddesuurde",
+        "modernName": "Badsworth",
+        "hundred": "Osgoldcross",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:wakefield",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.4976,
+          53.6832
+        ]
+      },
+      "properties": {
+        "domesdayName": "Wachefeld",
+        "modernName": "Wakefield",
+        "hundred": "Agbrigg",
+        "households": null,
+        "notes": "Largest nearby settlement",
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "domesday:pontefract-castle-area-",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.314,
+          53.6913
+        ]
+      },
+      "properties": {
+        "domesdayName": "Pontrefact",
+        "modernName": "Pontefract (castle area)",
+        "hundred": "Barkston",
+        "households": null,
+        "notes": null,
+        "layerId": "historical:domesday-settlement",
+        "source": "Palmer/Hull Domesday dataset + historical records (ODbL)",
+        "validFrom": 1086,
+        "validTo": 1086
+      }
+    }
+  ]
+}

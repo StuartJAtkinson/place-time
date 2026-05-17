@@ -1,152 +1,136 @@
 # Place-Time: Hexagonal Geological to Political Spatial Index
 
-> A rational grid system for all Earth's surface history, indexed by hexagonal tessellation from geological reference spheres.
+> A queryable spatial index stacking geological → historical → political layers across time, indexed by H3 hexagonal tessellation. Focus area: Five Towns, West Yorkshire.
 
-**Status:** Early Planning | **Focus Area:** Five Towns (Pontefract, Knottingley, Featherstone, Castleford, Normanton) | **Stack:** TypeScript / Node.js / QGIS-compatible | **Channel:** homelab-native
-
----
-
-## Core Concept
-
-**Reference Spheres:**
-- **Outer sphere:** Highest peaks of all time (+1km buffer above Everest) → defines the ceiling of all terrestrial history
-- **Inner sphere:** Lowest trenches (Mariana Trench -1km buffer) → defines the floor of all marine history
-- These two spheres form a closed shell containing every location that has ever existed on Earth's surface
-
-**Hexagonal Tessellation:** The entire shell is covered by a hexagonal grid, providing a rational, discrete coordinate system that doesn't depend on political boundaries or modern geography.
-
-**Data Model:** Scrape → Group → Clean → Standardize, following OSM/Google-scale data principles. This is not a small project — only organisations with global map infrastructure can maintain it properly. We focus on:
-1. **Ingestion pipeline** for open-source standards-compliant data
-2. **Hexagonal indexing** for rational spatial queries
-3. **Time-aware layering** (geological → political)
-4. **Five Towns focus area** as primary use case
+**Status:** Working proof-of-concept — Phases 0–4 complete  
+**Stack:** TypeScript / Node.js / H3-js / Leaflet / QGIS  
+**Budget:** £0 (all open data sources)
 
 ---
 
-## Why Hexagons?
+## What It Does
 
-- **Tessellation:** Hexagons tile a sphere perfectly (like soccer balls, carbon nanotubes)
-- **Equal area:** Each hexagon represents equal surface area — useful for normalization
-- **Directional neighbors:** Each hexagon has exactly 6 neighbors at 60° angles — natural for directional queries
-- **Resolution levels:** Hexagonal grids subdivide naturally (H3 from Uber, ISEGrid from UK Ordnance Survey)
+Given a place and a year, return everything that was happening there — from the bedrock geology to the Norman polity to the modern ward boundary. The CLI query `--place pontefract --year 1086` returns:
 
----
-
-## Focus Area: Five Towns
-
-West Yorkshire cluster:
-- **Pontefract** (ancient: Tanshelf in Doomsday Book)
-- **Knottingley**
-- **Featherstone**
-- **Castleford** (ancient: Leoperce in Doomsday Book)
-- **Normanton**
-
-These towns sit at the intersection of:
-- Carboniferous geology (Yorkshire Coal Measures)
-- Medieval hundredal system (Aghine / Barkston / Osgoldcross)
-- Modern metropolitan borough boundaries
-- Railway-era electoral gerrymandering
-
-This makes them an ideal test case for stacking geological → historical → political layers.
-
-### The Stack We're Building On
-
-| Layer | Source | Format | License |
-|-------|--------|--------|---------|
-| Geological base | GPlates 2.5 GeoData (Zenodo) | GeoJSON/Vector | CC-BY |
-| Tectonic plates | fraxen/tectonicplates (GitHub) | GeoJSON | NoASSERTION |
-| Geological provinces | Global Tectonics (dhasterok) | GeoJSON/QML | Custom |
-| Historical boundaries | Cliopatria (Nature/Seshat) | GeoJSON | CC-BY-NC |
-| Doomsday Book | OpenDomesday (Hull) | REST/GeoJSON | ODC-ODbL |
-| Historical basemaps | aourednik/historical-basemaps | GeoJSON | Various |
-| Political entities | OHMEC | GeoJSON | CC-BY-SA |
-| Modern boundaries | Geofabrik/OSM | Shapefile/GeoPackage | ODbL |
-| Humanitarian overlays | HDX (OCHA) | Various | Various |
+- H3 cell at res 7 and 8
+- Domesday settlement (Tanshelf → Barkston hundred)
+- Cliopatria polity (Norman England, 1085–1093)
+- Modern constituency (Normanton, Pontefract and Castleford)
+- Ward (Pontefract North)
+- BGS bedrock (Yorkshire Coal Measures)
 
 ---
 
-## Project Goals
-
-1. **QGIS-compatible output** — primary export format is GeoJSON/GeoPackage that loads directly into QGIS
-2. **Time-aware querying** — "what was here at year X?" as a first-class operation
-3. **Layered boundary system:**
-
-   ```
-   CORE
-    └── Mantle boundary (depth model)
-    └── Tectonic plate boundaries (surface projection)
-    └── Geological provinces (rock type/surface)
-    └── Hydrological features (rivers, watershed divides)
-    └── Administrative boundaries (historical + modern)
-        └── Parish / Township
-        └── Hundred / Wapentake
-        └── Shire / County
-        └── Constituency / Parliament
-        └── Electoral district
-        └── EU/NATO/UN overlay capability
-   SURFACE
-   ```
-
-4. **Gerrymandering transparency** — overlay current constituency boundaries with historical county lines to surface how electoral geography has been manipulated over time
-
----
-
-## Why This Matters
-
-Your Pontefract example is a perfect case study:
-
-- **Geological**: Pontefract sits on Yorkshire Coal Measures, Permian and Triassic strata. The underlying geology hasn't moved in 100 million years.
-- **Doomsday**: "Tanshelf" in the Domesday Book (1086). The settlement pattern was established, the hundredal system structured the administrative geography.
-- **Medieval**: The Honor of Pontefract, the castle, the monastic holdings — all overlay a geography that traces back to these earlier systems.
-- **Modern**: The metropolitan borough, the constituency boundaries — all are derived from these earlier layers, often with deliberate manipulation (gerrymandering) visible when you stack the layers.
-
-The tool makes that stacking visual and queryable.
-
----
-
-## Key Features
-
-- [ ] GeoJSON/GeoPackage ingestion pipeline for each source
-- [ ] Time-slider interface for querying boundaries at any date
-- [ ] Layer compositor showing all active boundaries for a given place/date
-- [ ] Gerrymander index: measure boundary compactness, compare historical vs current
-- [ ] QGIS layer file generator (.qlr) for one-click project restore
-- [ ] Export to Shapefile for legacy GIS compatibility
-
----
-
-## Technical Approach
-
-- **Runtime:** Node.js (TypeScript), runs as local web app
-- **Data:** Pre-processed static GeoJSON bundles (no live API calls for base data)
-- **Query:** In-memory spatial index (rbush or similar) for fast boundary lookups
-- **Output:** QGIS-compatible (.geojson, .gpkg, .qlr)
-- **Interface:** Local web UI with map view (Leaflet or OpenLayers), time scrubber, layer toggles
-
----
-
-## Getting Started
+## Quick Start
 
 ```bash
-cd H:\place-time
-# Data ingestion (when implemented)
-npm run ingest:geology
-npm run ingest:historical
-npm run ingest:boundaries
-# Dev server
-npm run dev
+npm install
+
+# Query the CLI
+npm run query -- --place pontefract --year 1086
+npm run query -- --place castleford --year 2024
+npm run query -- --lat 53.693 --lng -1.310 --year 1350
+
+# Web UI (time slider + layer toggles + click-to-query)
+npm run dev   # → http://localhost:5173
+
+# Re-ingest data from sources
+npm run ingest:all
+
+# Regenerate H3 grids
+npx tsx scripts/phase1-grid-calibration.ts
+
+# Regenerate QGIS project file
+npm run build:qgis
 ```
+
+Known places: `pontefract`, `castleford`, `featherstone`, `knottingley`, `normanton`, `wakefield`
+
+---
+
+## Data Layers
+
+| Layer | Features | Source | License |
+|-------|----------|--------|---------|
+| Tectonic Plates | 54 | fraxen/tectonicplates | ODC-BY |
+| Geological Provinces (BGS) | 49 | BGS OGC API 1:625k bedrock | OGL |
+| Five Towns H3 Grid (Res 7) | 187 | Generated (~8.6km edge) | — |
+| Five Towns H3 Grid (Res 8) | 1307 | Generated (~4.3km edge) | — |
+| Domesday Settlements 1086 | 10 | Palmer/Hull dataset | ODbL |
+| Yorkshire Settlements (OSM) | 420 | Overpass API | ODbL |
+| Cliopatria UK Polities | 799 | Seshat/Cliopatria (161–2024 CE) | CC-BY-NC |
+| West Yorkshire | 1 | ONS Open Geography | OGL |
+| Wakefield Metropolitan District | 1 | ONS Open Geography | OGL |
+| Westminster Constituencies | 2 | ONS (2022 boundaries) | OGL |
+| Wakefield Wards (2023) | 21 | ONS | OGL |
+
+All data in `data/` as GeoJSON. Human-readable label fields: `PCON22NM`, `WD23NM`, `Name` (Cliopatria), `domesdayName`/`modernName`, `name` (OSM), `name`+`rockDescription` (geology), `settlement` (H3).
+
+---
+
+## QGIS
+
+Load all 11 layers in one click:
+
+**Layer > Add from Layer Definition File > `export/place-time-five-towns.qlr`**
+
+The QLR uses paths relative to the `export/` directory (`../data/...`) so it works after cloning to any location.
+
+---
+
+## Architecture
+
+```
+H3 hex grid (res 7 + 8, Yorkshire bounding box)
+    ↓
+Ingestion pipeline (src/ingest/)
+    ├── geology.ts      → BGS OGC API + fraxen/tectonicplates
+    ├── historical.ts   → Palmer/Hull Domesday + Overpass + Cliopatria
+    └── boundaries.ts   → ONS ArcGIS REST (MDC, county, constituencies, wards)
+    ↓
+GeoJSON bundles (data/)
+    ↓
+├── CLI query (src/cli/query.ts)          point-in-polygon, temporal filter
+├── Web UI  (src/ui/app.ts + index.html)  Leaflet, time slider, click-to-query
+└── QGIS export (export/*.qlr)            layer definition files
+```
+
+**HexaLog space** (`src/core/hexalog.ts`): dual-logarithmic time×space grid — Big Bang at res 0 (~5M km²), year 2000 at res 15 (~1m). The H3 resolution scales with the time position so spatial precision matches temporal precision.
+
+**Embedding pipeline** (`src/core/hexalog.ts` `EmbeddingSearchPipeline`): Ollama local model for boundary discovery queries. Scaffolded — requires building a vector index from the GeoJSON bundles.
+
+---
+
+## Five Towns Focus
+
+West Yorkshire cluster sitting at the intersection of:
+
+- **Geological**: Yorkshire Coal Measures, Permian Zechstein, Carboniferous strata
+- **Domesday (1086)**: Tanshelf (Pontefract), Leoperce (Castleford), Fernesforde (Featherstone), Chenulvelai (Knottingley), Normentone (Normanton) — Barkston, Osgoldcross and Agbrigg hundreds
+- **Medieval**: Honor of Pontefract, monastic holdings, wapentake divisions
+- **Modern**: Two Westminster constituencies — *Normanton, Pontefract and Castleford* and *Hemsworth* — illustrating how the 2022 boundary review re-drew the electoral map
+
+The gerrymandering analysis (Polsby-Popper compactness vs historical county lines) is the next unbuilt piece.
+
+---
+
+## Known Issues / Next Steps
+
+1. **Gerrymandering analysis** — Polsby-Popper compactness calculation not yet implemented
+2. **Embedding pipeline** — `EmbeddingSearchPipeline.searchSource()` is a placeholder; needs a real vector index
+3. **OpenDomesday API offline** — full Yorkshire Domesday: https://hydra.hull.ac.uk/resources/hull:domesdayDisplaySet
+4. **Cliopatria license** — CC-BY-NC; commercial use requires alternatives or negotiation
 
 ---
 
 ## Links
 
-- Geological base data: [GPlates 2.5 GeoData (Zenodo)](https://zenodo.org/records/14194897)
-- Tectonic plates: [fraxen/tectonicplates](https://github.com/fraxen/tectonicplates)
-- Historical boundaries: [Cliopatria (Seshat)](https://github.com/Seshat-Global-History-Databank/cliopatria)
-- English historical: [OpenDomesday](https://opendomesday.org)
-- Gerrymandering research: [Range-Voting.org](http://range-voting.org/Gerrymeth.html)
+- H3 (Uber): https://github.com/uber/h3
+- BGS OGC API: https://ogcapi.bgs.ac.uk/
+- Cliopatria: https://github.com/Seshat-Global-History-Databank/cliopatria
+- fraxen/tectonicplates: https://github.com/fraxen/tectonicplates
+- ONS Open Geography: https://geoportal.statistics.gov.uk/
 
 ---
 
-*This project is independent and not affiliated with GPlates, OSM, or any data provider.*
+*Independent project. Not affiliated with any data provider.*
