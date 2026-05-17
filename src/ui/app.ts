@@ -1,158 +1,200 @@
-// Place-Time Web UI
-// Leaflet map with time slider, layer toggles, and point query
+import * as Cesium from 'cesium';
 
-import type * as Leaflet from 'leaflet';
-declare const L: typeof Leaflet;
-
-// Point-in-polygon (ray casting)
-function pointInRing(px: number, py: number, ring: number[][]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j];
-    if (((yi > py) !== (yj > py)) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-function pointInGeometry(lng: number, lat: number, geometry: GeoJSON.Geometry): boolean {
-  try {
-    if (geometry.type === 'Polygon') return pointInRing(lng, lat, geometry.coordinates[0] as number[][]);
-    if (geometry.type === 'MultiPolygon') return (geometry.coordinates as number[][][][]).some(p => pointInRing(lng, lat, p[0]));
-  } catch { /* skip */ }
-  return false;
-}
+// ---------------------------------------------------------------------------
+// No Cesium ion required — fully self-hosted
+// ---------------------------------------------------------------------------
+Cesium.Ion.defaultAccessToken = '';
 
 // ---------------------------------------------------------------------------
 // Layer definitions
 // ---------------------------------------------------------------------------
-const LAYER_DEFS = [
-  { id: 'wards', label: 'Wards', path: '/wards-wakefield.geojson', color: '#9c6fba', active: false },
-  { id: 'constituencies', label: 'Constituencies', path: '/constituencies-five-towns.geojson', color: '#c060c0', active: true },
-  { id: 'wakefield', label: 'Wakefield MDC', path: '/wakefield-mdc.geojson', color: '#50a050', active: true },
-  { id: 'west-yorkshire', label: 'West Yorkshire', path: '/west-yorkshire.geojson', color: '#308030', active: false },
-  { id: 'cliopatria', label: 'UK Polities', path: '/cliopatria-uk.geojson', color: '#8050b0', active: false },
-  { id: 'settlements', label: 'OSM Towns', path: '/yorkshire-settlements-osm.geojson', color: '#b09040', active: true },
-  { id: 'domesday', label: 'Domesday 1086', path: '/domesday-five-towns.geojson', color: '#e0b030', active: true },
-  { id: 'hex-res8', label: 'H3 Res 8', path: '/five-towns-grid-res8.geojson', color: '#4090c0', active: true },
-  { id: 'hex-res7', label: 'H3 Res 7', path: '/five-towns-grid-res7.geojson', color: '#2060a0', active: false },
-  { id: 'geology', label: 'Bedrock', path: '/geological_provinces.geojson', color: '#a07040', active: false },
-  { id: 'tectonic', label: 'Tectonic', path: '/tectonic_plates.geojson', color: '#804030', active: false },
+interface LayerDef {
+  id: string;
+  label: string;
+  path: string;
+  color: string;         // CSS hex
+  fillAlpha: number;     // 0–1
+  strokeAlpha: number;
+  strokeWidth: number;
+  pointSize?: number;    // if set, render as points not polygons
+  labelField?: string;   // property to use as billboard label
+  active: boolean;
+}
+
+const LAYER_DEFS: LayerDef[] = [
+  // Bottom layers first (drawn in order)
+  { id: 'tectonic',       label: 'Tectonic',        path: '/tectonic_plates.geojson',           color: '#804030', fillAlpha: 0.06, strokeAlpha: 0.5,  strokeWidth: 0.8, active: false },
+  { id: 'geology',        label: 'Bedrock (BGS)',    path: '/geological_provinces.geojson',       color: '#a07040', fillAlpha: 0.18, strokeAlpha: 0.5,  strokeWidth: 0.5, labelField: 'name', active: false },
+  { id: 'hex-res7',       label: 'H3 Res 7',         path: '/five-towns-grid-res7.geojson',       color: '#2060a0', fillAlpha: 0,    strokeAlpha: 0.7,  strokeWidth: 1.2, active: false },
+  { id: 'hex-res8',       label: 'H3 Res 8',         path: '/five-towns-grid-res8.geojson',       color: '/4090c0', fillAlpha: 0,    strokeAlpha: 0.55, strokeWidth: 0.5, active: true },
+  { id: 'cliopatria',     label: 'UK Polities',      path: '/cliopatria-uk.geojson',              color: '#8050b0', fillAlpha: 0.12, strokeAlpha: 0.6,  strokeWidth: 0.6, labelField: 'Name', active: false },
+  { id: 'west-yorkshire', label: 'West Yorkshire',   path: '/west-yorkshire.geojson',             color: '#308030', fillAlpha: 0.04, strokeAlpha: 0.7,  strokeWidth: 2.0, active: false },
+  { id: 'wakefield',      label: 'Wakefield MDC',    path: '/wakefield-mdc.geojson',              color: '/50a050', fillAlpha: 0.05, strokeAlpha: 0.8,  strokeWidth: 2.0, active: true },
+  { id: 'constituencies', label: 'Constituencies',   path: '/constituencies-five-towns.geojson',  color: '#c060c0', fillAlpha: 0.1,  strokeAlpha: 0.8,  strokeWidth: 1.5, labelField: 'PCON22NM', active: true },
+  { id: 'wards',          label: 'Wards',            path: '/wards-wakefield.geojson',             color: '#9c6fba', fillAlpha: 0.07, strokeAlpha: 0.6,  strokeWidth: 0.7, labelField: 'WD23NM', active: false },
+  { id: 'settlements',    label: 'OSM Towns',        path: '/yorkshire-settlements-osm.geojson',  color: '#b09040', fillAlpha: 1,    strokeAlpha: 1,    strokeWidth: 1,   pointSize: 5, labelField: 'name', active: true },
+  { id: 'domesday',       label: 'Domesday 1086',    path: '/domesday-five-towns.geojson',        color: '#e0b030', fillAlpha: 1,    strokeAlpha: 1,    strokeWidth: 1.5, pointSize: 9, labelField: 'domesdayName', active: true },
 ];
+
+// Fix the two entries with '/' prefix in color (typos)
+for (const d of LAYER_DEFS) {
+  if (d.color.startsWith('/')) d.color = '#' + d.color.slice(1);
+}
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 let currentYear = 1086;
-const leafletLayers = new Map<string, L.GeoJSON>();
-const geojsonCache = new Map<string, GeoJSON.FeatureCollection>();
-const activeToggle = new Set<string>(['constituencies', 'wakefield', 'settlements', 'domesday', 'hex-res8']);
+const dataSources = new Map<string, Cesium.GeoJsonDataSource>();
+const activeSet = new Set<string>(LAYER_DEFS.filter(d => d.active).map(d => d.id));
 
 // ---------------------------------------------------------------------------
-// Map init
+// Cesium viewer — no ion, no default imagery
 // ---------------------------------------------------------------------------
-const map = L.map('map').setView([53.693, -1.31], 11);
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  imageryProvider: false as unknown as Cesium.ImageryProvider,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: false,
+  sceneModePicker: true,
+  navigationHelpButton: false,
+  animation: false,
+  timeline: false,
+  fullscreenButton: false,
+  selectionIndicator: false,
+  infoBox: false,
+});
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap © CartoDB',
-  maxZoom: 19,
-}).addTo(map);
+// OSM base imagery
+viewer.imageryLayers.addImageryProvider(
+  new Cesium.UrlTemplateImageryProvider({
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    credit: '© OpenStreetMap contributors',
+    maximumLevel: 19,
+  })
+);
+
+// Dark space background
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0a14');
+
+// Start over Five Towns
+viewer.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(-1.31, 53.69, 60000),
+  orientation: {
+    heading: 0,
+    pitch: Cesium.Math.toRadians(-50),
+    roll: 0,
+  },
+});
 
 // ---------------------------------------------------------------------------
-// GeoJSON loader (cached)
+// Colour helpers
 // ---------------------------------------------------------------------------
-async function loadGeoJson(path: string): Promise<GeoJSON.FeatureCollection | null> {
-  if (geojsonCache.has(path)) return geojsonCache.get(path)!;
+function cesiumColor(hex: string, alpha = 1): Cesium.Color {
+  return Cesium.Color.fromCssColorString(hex).withAlpha(alpha);
+}
+
+// ---------------------------------------------------------------------------
+// Temporal filter — does this feature exist at currentYear?
+// ---------------------------------------------------------------------------
+function featureActiveAt(props: Record<string, unknown>, year: number): boolean {
+  const from = props['FromYear'] ?? props['validFrom'] ?? null;
+  const to   = props['ToYear']   ?? props['validTo']   ?? null;
+  const fromOk = from === null || from === undefined || (from as number) <= year;
+  const toOk   = to   === null || to   === undefined || (to   as number) >= year;
+  return fromOk && toOk;
+}
+
+// ---------------------------------------------------------------------------
+// Load and style a single layer
+// ---------------------------------------------------------------------------
+async function loadLayer(def: LayerDef): Promise<void> {
+  if (dataSources.has(def.id)) return;
+
   try {
-    const r = await fetch(path);
-    if (!r.ok) return null;
-    const data = await r.json() as GeoJSON.FeatureCollection;
-    geojsonCache.set(path, data);
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Layer style helpers
-// ---------------------------------------------------------------------------
-function styleForLayer(id: string, color: string): L.PathOptions {
-  if (id === 'domesday' || id === 'settlements') {
-    return { color, fillColor: color, fillOpacity: 0.9, radius: 5 } as L.PathOptions;
-  }
-  return { color, weight: id === 'wakefield' || id === 'west-yorkshire' ? 2.5 : 1.2, fillOpacity: 0.06, fillColor: color };
-}
-
-function isPointLayer(id: string): boolean {
-  return id === 'domesday' || id === 'settlements';
-}
-
-// ---------------------------------------------------------------------------
-// Render layer filtered by year
-// ---------------------------------------------------------------------------
-async function renderLayer(def: typeof LAYER_DEFS[0]) {
-  const existing = leafletLayers.get(def.id);
-  if (existing) map.removeLayer(existing);
-  if (!activeToggle.has(def.id)) return;
-
-  const data = await loadGeoJson(def.path);
-  if (!data) return;
-
-  const features = data.features.filter(f => {
-    const from = f.properties?.FromYear ?? f.properties?.validFrom;
-    const to = f.properties?.ToYear ?? f.properties?.validTo;
-    const fromOk = from === null || from === undefined || from <= currentYear;
-    const toOk = to === null || to === undefined || to >= currentYear;
-    return fromOk && toOk;
-  });
-
-  const style = styleForLayer(def.id, def.color);
-  const isPoint = isPointLayer(def.id);
-
-  // Hex layers — rendered with tooltips showing H3 index and nearest settlement
-  if (def.id.startsWith('hex')) {
-    const hexStyle = { color: def.color, weight: 1.5, fillOpacity: 0.15, fillColor: def.color };
-    const layer = L.geoJSON({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection, {
-      style: () => hexStyle,
-      onEachFeature: (f, layer) => {
-        const p = f.properties as Record<string, unknown>;
-        const res = p['resolution'];
-        const h3 = p['h3Index'] as string;
-        const settlement = p['settlement'] as string || 'Unassigned';
-        const distM = p['settlementDistM'] as number | null;
-        const edgeM = p['cellEdgeM'] as number | null;
-        const distStr = distM !== null ? ` — ${Math.round(distM)}m from ${settlement}` : '';
-        const edgeStr = edgeM !== null ? ` — ${edgeM}m cell edge` : '';
-        const label = `H3 Res ${res}\n${h3}\n${settlement}${distStr}${edgeStr}`;
-        (layer as L.Path).bindTooltip(label, { sticky: true });
-      },
+    const ds = new Cesium.GeoJsonDataSource(def.id);
+    await ds.load(def.path, {
+      stroke: cesiumColor(def.color, def.strokeAlpha),
+      strokeWidth: def.strokeWidth,
+      fill: cesiumColor(def.color, def.fillAlpha),
+      markerSize: def.pointSize ?? 0,
     });
-    map.addLayer(layer);
-    leafletLayers.set(def.id, layer);
-    return;
+
+    styleDataSource(ds, def);
+    applyTemporalFilter(ds, def);
+
+    dataSources.set(def.id, ds);
+    if (activeSet.has(def.id)) {
+      viewer.dataSources.add(ds);
+    }
+  } catch (err) {
+    console.warn(`Failed to load ${def.id}:`, err);
   }
-
-  const layer = L.geoJSON({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection, {
-    style: isPoint ? undefined : () => style,
-    pointToLayer: isPoint ? (f: GeoJSON.Feature, latlng: Leaflet.LatLng) => {
-      const m = L.circleMarker(latlng, { ...style, radius: def.id === 'domesday' ? 8 : 4, weight: 1.5 });
-      const p = f.properties as Record<string, unknown>;
-      if (p['domesdayName']) {
-        m.bindTooltip(`${p['domesdayName']} → ${p['modernName']}`, { permanent: false });
-      } else if (p['name']) {
-        m.bindTooltip(p['name'] as string, { permanent: false });
-      }
-      return m;
-    } : undefined,
-  });
-
-  map.addLayer(layer);
-  leafletLayers.set(def.id, layer);
 }
 
-async function renderAllLayers() {
-  for (const def of LAYER_DEFS) {
-    await renderLayer(def);
+function styleDataSource(ds: Cesium.GeoJsonDataSource, def: LayerDef): void {
+  const fill   = cesiumColor(def.color, def.fillAlpha);
+  const stroke = cesiumColor(def.color, def.strokeAlpha);
+
+  for (const entity of ds.entities.values) {
+    const props = entity.properties?.getValue(Cesium.JulianDate.now()) as Record<string, unknown> ?? {};
+
+    if (entity.polygon) {
+      entity.polygon.material = new Cesium.ColorMaterialProperty(fill) as unknown as Cesium.MaterialProperty;
+      entity.polygon.outlineColor = new Cesium.ConstantProperty(stroke);
+      entity.polygon.outline = new Cesium.ConstantProperty(true);
+      entity.polygon.outlineWidth = new Cesium.ConstantProperty(def.strokeWidth);
+      // height:0 keeps polygon on ellipsoid surface and allows outlines (clampToGround disables outlines)
+      entity.polygon.height = new Cesium.ConstantProperty(0);
+    }
+
+    if (entity.polyline) {
+      entity.polyline.material = new Cesium.ColorMaterialProperty(stroke) as unknown as Cesium.MaterialProperty;
+      entity.polyline.width = new Cesium.ConstantProperty(def.strokeWidth);
+      entity.polyline.clampToGround = new Cesium.ConstantProperty(true);
+    }
+
+    if (entity.point) {
+      entity.point.color = new Cesium.ConstantProperty(fill);
+      entity.point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.WHITE.withAlpha(0.6));
+      entity.point.outlineWidth = new Cesium.ConstantProperty(1);
+      entity.point.pixelSize = new Cesium.ConstantProperty(def.pointSize ?? 6);
+      entity.point.heightReference = new Cesium.ConstantProperty(Cesium.HeightReference.CLAMP_TO_GROUND);
+      entity.point.disableDepthTestDistance = new Cesium.ConstantProperty(Number.POSITIVE_INFINITY);
+    }
+
+    // Label
+    if (def.labelField && props[def.labelField]) {
+      entity.label = new Cesium.LabelGraphics({
+        text: new Cesium.ConstantProperty(String(props[def.labelField])),
+        font: new Cesium.ConstantProperty(def.pointSize ? '11px system-ui' : '10px system-ui'),
+        fillColor: new Cesium.ConstantProperty(cesiumColor(def.color, 0.95)),
+        outlineColor: new Cesium.ConstantProperty(Cesium.Color.BLACK),
+        outlineWidth: new Cesium.ConstantProperty(2),
+        style: new Cesium.ConstantProperty(Cesium.LabelStyle.FILL_AND_OUTLINE),
+        pixelOffset: new Cesium.ConstantProperty(new Cesium.Cartesian2(0, def.pointSize ? -(def.pointSize + 4) : -2)),
+        heightReference: new Cesium.ConstantProperty(Cesium.HeightReference.CLAMP_TO_GROUND),
+        disableDepthTestDistance: new Cesium.ConstantProperty(Number.POSITIVE_INFINITY),
+        show: new Cesium.ConstantProperty(true),
+        distanceDisplayCondition: new Cesium.ConstantProperty(
+          def.pointSize
+            ? new Cesium.DistanceDisplayCondition(0, 50000)   // points: show within 50km
+            : new Cesium.DistanceDisplayCondition(0, 200000)  // polygons: show within 200km
+        ),
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Temporal filter — show/hide entities based on currentYear
+// ---------------------------------------------------------------------------
+function applyTemporalFilter(ds: Cesium.GeoJsonDataSource, def: LayerDef): void {
+  for (const entity of ds.entities.values) {
+    const props = entity.properties?.getValue(Cesium.JulianDate.now()) as Record<string, unknown> ?? {};
+    const visible = featureActiveAt(props, currentYear);
+    entity.show = visible;
   }
 }
 
@@ -166,121 +208,117 @@ function formatYear(y: number): string {
   return y >= 0 ? `${y} CE` : `${Math.abs(y)} BCE`;
 }
 
-slider.addEventListener('input', () => {
+function onYearChange(): void {
   currentYear = parseInt(slider.value);
   yearDisplay.textContent = formatYear(currentYear);
-  renderAllLayers();
-});
+
+  for (const [id, ds] of dataSources) {
+    const def = LAYER_DEFS.find(d => d.id === id)!;
+    applyTemporalFilter(ds, def);
+  }
+}
+
+slider.addEventListener('input', onYearChange);
+yearDisplay.textContent = formatYear(currentYear);
 
 // ---------------------------------------------------------------------------
 // Layer toggle buttons
 // ---------------------------------------------------------------------------
 const toggleContainer = document.getElementById('layer-toggles') as HTMLDivElement;
+
 for (const def of LAYER_DEFS) {
   const btn = document.createElement('button');
-  btn.className = `layer-btn${activeToggle.has(def.id) ? ' active' : ''}`;
+  btn.className = `layer-btn${activeSet.has(def.id) ? ' active' : ''}`;
   btn.textContent = def.label;
   btn.style.borderColor = def.color;
-  if (activeToggle.has(def.id)) btn.style.backgroundColor = def.color;
-  btn.onclick = () => {
-    if (activeToggle.has(def.id)) {
-      activeToggle.delete(def.id);
+  if (activeSet.has(def.id)) btn.style.backgroundColor = def.color;
+
+  btn.onclick = async () => {
+    if (activeSet.has(def.id)) {
+      activeSet.delete(def.id);
       btn.classList.remove('active');
       btn.style.backgroundColor = 'transparent';
-      const l = leafletLayers.get(def.id);
-      if (l) map.removeLayer(l);
+      btn.style.color = '#e0e0e0';
+      const ds = dataSources.get(def.id);
+      if (ds) viewer.dataSources.remove(ds, false);
     } else {
-      activeToggle.add(def.id);
+      activeSet.add(def.id);
       btn.classList.add('active');
       btn.style.backgroundColor = def.color;
-      renderLayer(def);
+      btn.style.color = '#0a0a14';
+      await loadLayer(def);
+      const ds = dataSources.get(def.id);
+      if (ds && !viewer.dataSources.contains(ds)) viewer.dataSources.add(ds);
     }
   };
+
   toggleContainer.appendChild(btn);
+
+  // Start loading active layers
+  if (activeSet.has(def.id)) loadLayer(def);
 }
 
 // ---------------------------------------------------------------------------
-// Map click query
+// Click to query
 // ---------------------------------------------------------------------------
 const infoPanel = document.getElementById('info-panel') as HTMLDivElement;
 
-map.on('click', async (e: Leaflet.LeafletMouseEvent) => {
-  const { lat, lng } = e.latlng;
+viewer.screenSpaceEventHandler.setInputAction(
+  (event: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
+    const picked = viewer.scene.pick(event.position);
 
-  const clickMarker = L.circleMarker([lat, lng], { radius: 6, color: '#e94560', fillColor: '#e94560', fillOpacity: 0.8 })
-    .addTo(map);
-  clickMarker.on('click', () => map.removeLayer(clickMarker));
-
-  let html = `<h3>📍 ${lat.toFixed(4)}°N, ${lng.toFixed(4)}°W</h3>`;
-  html += `<div style="color:#888;font-size:0.7rem;margin-bottom:0.5rem;">Year: ${formatYear(currentYear)}</div>`;
-
-  // Domesday
-  const domesday = await loadGeoJson('/domesday-five-towns.geojson');
-  if (domesday && Math.abs(currentYear - 1086) < 100) {
-    const nearby = domesday.features
-      .filter(f => f.geometry.type === 'Point')
-      .map(f => {
-        const [fLng, fLat] = (f.geometry as GeoJSON.Point).coordinates;
-        return { ...f.properties, dist: Math.sqrt((fLat - lat) ** 2 + (fLng - lng) ** 2) };
-      })
-      .filter((p) => p.dist < 0.15)
-      .sort((a, b) => a.dist - b.dist);
-
-    if (nearby.length > 0) {
-      html += `<div class="info-section"><h4>Domesday (1086)</h4>`;
-      for (const p of nearby.slice(0, 3)) {
-        const props = p as Record<string, unknown>;
-        html += `<div class="info-item"><strong>${props['domesdayName']}</strong> → ${props['modernName']} (${props['hundred']})</div>`;
-      }
-      html += '</div>';
+    if (!Cesium.defined(picked) || !picked.id) {
+      // Clicked empty space — show coordinates
+      const ray = viewer.camera.getPickRay(event.position);
+      if (!ray) return;
+      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      if (!cartesian) return;
+      const carto = Cesium.Cartographic.fromCartesian(cartesian);
+      const lat = Cesium.Math.toDegrees(carto.latitude).toFixed(5);
+      const lng = Cesium.Math.toDegrees(carto.longitude).toFixed(5);
+      const elev = (carto.height / 1000).toFixed(1);
+      infoPanel.innerHTML = `<h3>📍 ${lat}°N, ${lng}°E</h3><div style="color:#666;font-size:0.7rem;">${elev}km elevation · Year: ${formatYear(currentYear)}</div>`;
+      return;
     }
-  }
 
-  // H3 hex — show which cell and nearest settlement
-  const hexRes8 = await loadGeoJson('/five-towns-grid-res8.geojson');
-  if (hexRes8) {
-    const matching = hexRes8.features.filter(f => {
-      if (f.geometry?.type !== 'Polygon') return false;
-      return pointInGeometry(lng, lat, f.geometry);
+    const entity = picked.id as Cesium.Entity;
+    const props = entity.properties?.getValue(Cesium.JulianDate.now()) as Record<string, unknown> ?? {};
+    const sourceId = entity.entityCollection?.owner instanceof Cesium.GeoJsonDataSource
+      ? (entity.entityCollection.owner as Cesium.GeoJsonDataSource).name
+      : '';
+    const def = LAYER_DEFS.find(d => d.id === sourceId);
+
+    let html = `<h3>${def?.label ?? 'Feature'}</h3>`;
+    html += `<div style="color:#666;font-size:0.7rem;margin-bottom:0.4rem;">Year: ${formatYear(currentYear)}</div>`;
+    html += `<div class="info-section"><div class="info-section">`;
+
+    // Show meaningful properties — skip internal/boilerplate ones
+    const skip = new Set(['layerId', 'source', 'validFrom', 'validTo', 'FID', 'GlobalID',
+      'Shape__Area', 'Shape__Length', 'BNG_E', 'BNG_N', 'LONG', 'LAT']);
+
+    for (const [key, val] of Object.entries(props)) {
+      if (skip.has(key) || val === null || val === undefined || val === '') continue;
+      html += `<div class="info-item"><span style="color:#888">${key}:</span> ${val}</div>`;
+    }
+
+    html += `</div></div>`;
+    infoPanel.innerHTML = html;
+  },
+  Cesium.ScreenSpaceEventType.LEFT_CLICK
+);
+
+// ---------------------------------------------------------------------------
+// Keyboard: G = fly to Five Towns, Escape = reset info panel
+// ---------------------------------------------------------------------------
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'G') {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-1.31, 53.69, 60000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-50), roll: 0 },
+      duration: 2,
     });
-    if (matching.length > 0) {
-      const p = matching[0].properties as Record<string, unknown>;
-      html += `<div class="info-section"><h4>H3 Cell (Res 8)</h4>`;
-      html += `<div class="info-item"><strong>${p['h3Index']}</strong></div>`;
-      html += `<div class="info-item">Nearest: ${p['settlement']} (${Math.round(p['settlementDistM'] as number)}m)</div>`;
-      html += `<div class="info-item">Cell edge: ${p['cellEdgeM']}m | Area: ${p['cellAreaKm2']}km²</div>`;
-      html += '</div>';
-    }
   }
-
-  // Cliopatria
-  const clio = await loadGeoJson('/cliopatria-uk.geojson');
-  if (clio) {
-    const active = clio.features.filter(f => {
-      if (!f.geometry) return false;
-      const from = f.properties?.FromYear;
-      const to = f.properties?.ToYear;
-      const timeOk = (from == null || from <= currentYear) && (to == null || to >= currentYear);
-      if (!timeOk) return false;
-      return pointInGeometry(lng, lat, f.geometry as GeoJSON.Geometry);
-    });
-
-    if (active.length > 0) {
-      html += `<div class="info-section"><h4>Polities</h4>`;
-      for (const f of active.slice(0, 5)) {
-        const from = f.properties?.FromYear ?? '?';
-        const to = f.properties?.ToYear ?? '?';
-        html += `<div class="info-item">${f.properties?.Name} (${from}–${to})</div>`;
-      }
-      html += '</div>';
-    }
+  if (e.key === 'Escape') {
+    infoPanel.innerHTML = '<h3>Click the globe</h3><p style="color:#666;font-size:0.72rem;">Select a location to see what existed there at the chosen year.</p>';
   }
-
-  infoPanel.innerHTML = html;
 });
-
-// ---------------------------------------------------------------------------
-// Initial render
-// ---------------------------------------------------------------------------
-yearDisplay.textContent = formatYear(currentYear);
-renderAllLayers();

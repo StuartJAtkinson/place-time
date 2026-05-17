@@ -15,6 +15,50 @@ import { latLngToCell, cellToLatLng, cellToBoundary, gridDisk } from 'h3-js';
 import { position, DEFAULT_CONFIG, TimescaleConfig, yearToPosition, positionToYear, GEOLOGICAL_EPOCHS, POLITICAL_EPOCHS, geologicalEpochAtPosition, politicalEpochAtPosition } from './timescale.js';
 import type { GeoFeature, Boundary, Layer } from './types.js';
 
+// ─── Place-Time Resolution (PTR) Scale ───────────────────────────────────────
+//
+// PTR maps the logarithmic time axis to spatial resolution in 11 discrete levels.
+//
+// PTR  0  →  H3 res 0   edge ~1,377km   planetary / tectonic plate
+// PTR  1  →  H3 res 1   edge ~518km     continental
+// PTR  2  →  H3 res 2   edge ~195km     sub-continental / ocean basin
+// PTR  3  →  H3 res 3   edge ~73km      large region / ancient empire
+// PTR  4  →  H3 res 4   edge ~27km      county / shire
+// PTR  5  →  H3 res 5   edge ~10km      hundred / wapentake
+// PTR  6  →  H3 res 6   edge ~3.9km     parish / township territory
+// PTR  7  →  H3 res 7   edge ~1.5km     large village / small town
+// PTR  8  →  H3 res 8   edge ~554m      neighbourhood / hamlet
+// PTR  9  →  H3 res 9   edge ~208m      (reserved — not currently used)
+// PTR 10  →  H3 res 9   edge ~2.1km     *** LEAF NODE — human knowability scale ***
+//
+// PTR-10 is the finest resolution in the Place-Time system. It represents the
+// scale of a Dunbar-scale human community (~150–1500 people, walkable in ~30min).
+// A person can "know" a PTR-10 cell — its people, its character, its history.
+// Below PTR-10, data is stored as *attributes* of the cell, not as subdivisions.
+// Streets, wards, buildings are properties of a PTR-10 cell, not child cells.
+//
+// This aligns with the logarithmic time axis: as timePos → 1.0 (present day),
+// the resolution approaches PTR-10 (H3 res 9, ~2.1km edge). Deeper time uses
+// coarser cells because the historical record itself is coarser.
+//
+// Note: PTR-10 maps to H3 res 9 (not H3 res 10) because the alignment optimiser
+// targets the ~2km human-settlement scale, which sits at H3 res 9.
+// PTR uses a 0–10 scale for clarity; H3 res 0–9 is the internal implementation.
+
+export const PTR_LEAF = 10;          // finest Place-Time Resolution (the leaf)
+export const H3_RES_LEAF = 9;        // H3 resolution at the leaf (do not exceed)
+export const PTR_LEVELS = 11;        // 0 through 10 inclusive
+
+/** Convert a Place-Time Resolution (0–10) to the corresponding H3 resolution (0–9). */
+export function ptrToH3Res(ptr: number): number {
+  return Math.min(Math.round((ptr / PTR_LEAF) * H3_RES_LEAF), H3_RES_LEAF);
+}
+
+/** Convert an H3 resolution (0–9) to the nearest Place-Time Resolution (0–10). */
+export function h3ResToPtr(h3Res: number): number {
+  return Math.round((Math.min(h3Res, H3_RES_LEAF) / H3_RES_LEAF) * PTR_LEAF);
+}
+
 // ─── Spatial Scale Constants ──────────────────────────────────────────────────
 
 /** Earth's diameter in kilometers */
@@ -40,22 +84,23 @@ export const EARTH_CIRCUMFERENCE_M = EARTH_DIAMETER_KM * 1_000;
  * Simplified: log10(earth_km * 1000) = log10(12_742_000) ≈ 7.1
  * For timePos=0 → res≈0, timePos=1 → res≈15
  */
+/**
+ * Map a time position (0=Big Bang, 1=present) to a Place-Time Resolution (0–10),
+ * then convert to the corresponding H3 resolution (0–9).
+ *
+ * Resolution increases as timePos approaches 1 (present day), because recent
+ * history has finer-grained data. PTR-10 (H3 res 9, ~2.1km) is the leaf —
+ * the human-knowability scale. It is never exceeded.
+ */
 export function resolutionFromTimePos(timePos: number): number {
-  const maxRes = 15;
-  const minRes = 0;
+  if (timePos >= 1) return H3_RES_LEAF;   // present or future → leaf resolution
+  if (timePos <= 0) return 0;              // Big Bang → planetary resolution
 
-  if (timePos >= 1) return maxRes;
-  if (timePos <= 0) return minRes;
-
-  // Logarithmic interpolation from earth-scale to 1-meter scale
-  // log10(earth_diameter_meters) = log10(12_742_000) ≈ 7.105
-  // At timePos=0: log10(cell_size_m) = 7.105 → res 0
-  // At timePos=1: log10(cell_size_m) = 0         → res 15
-  // Scale factor: 7.105 / 15 ≈ 0.473 per res
+  // Logarithmic interpolation from PTR-0 to PTR-10
   const logEarthM = Math.log10(EARTH_CIRCUMFERENCE_M);
-  const logCellSize = logEarthM * (1 - timePos); // 7.1 at pos 0, 0 at pos 1
-  const res = Math.floor(logCellSize / (logEarthM / maxRes));
-  return Math.max(minRes, Math.min(maxRes, res));
+  const logCellSize = logEarthM * (1 - timePos);
+  const h3Res = Math.floor(logCellSize / (logEarthM / H3_RES_LEAF));
+  return Math.max(0, Math.min(H3_RES_LEAF, h3Res));
 }
 
 /**
