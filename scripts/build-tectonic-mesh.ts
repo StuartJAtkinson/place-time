@@ -18,7 +18,7 @@
  * Run: npx tsx scripts/build-tectonic-mesh.ts [--area uk|global]
  */
 
-import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -121,20 +121,27 @@ async function reconstructBatch(
     features?: Array<{ geometry: { coordinates: [number, number] } | null }>;
   };
 
-  // GWS returns either a coordinates array or a GeoJSON FeatureCollection
+  // GWS returns either a coordinates array or a GeoJSON FeatureCollection.
+  // Entries can be null where a point has no valid reconstruction at that time.
   if (Array.isArray(data.coordinates)) {
-    return data.coordinates.map(([lng, lat]) => ({ lat, lng }));
+    return data.coordinates.map(coord => {
+      if (!coord || !Array.isArray(coord)) return { lat: null, lng: null };
+      return { lng: coord[0] ?? null, lat: coord[1] ?? null };
+    });
   }
   if (Array.isArray(data.features)) {
-    return data.features.map(f => f.geometry
-      ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
-      : { lat: null, lng: null }
-    );
+    return data.features.map(f => {
+      if (!f?.geometry?.coordinates) return { lat: null, lng: null };
+      const [lng, lat] = f.geometry.coordinates;
+      return { lng: lng ?? null, lat: lat ?? null };
+    });
   }
-  // Fallback: try to parse as raw coordinate pairs
-  const raw = data as unknown as [number, number][];
+  const raw = data as unknown as ([number, number] | null)[];
   if (Array.isArray(raw)) {
-    return raw.map(([lng, lat]) => ({ lat, lng }));
+    return raw.map(coord => {
+      if (!coord) return { lat: null, lng: null };
+      return { lng: coord[0] ?? null, lat: coord[1] ?? null };
+    });
   }
   throw new Error(`Unexpected GPlates response: ${JSON.stringify(data).slice(0, 300)}`);
 }
@@ -264,23 +271,44 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 4: Query GPlates for each time step
+  // Step 4: Query GPlates for each time step — with per-step checkpointing
+  // If a checkpoint exists for a time step, it is loaded instead of re-fetched.
+  // This lets you restart after failures without losing completed steps.
   // ---------------------------------------------------------------------------
+  const CHECKPOINT_DIR = join(ROOT, '.cache', 'tectonic-checkpoints');
+  mkdirSync(CHECKPOINT_DIR, { recursive: true });
+
   console.log('\nStep 4: Fetching GPlates reconstructions...');
   console.log(`  ${TIME_STEPS_MA.length} time steps × ${vertices.length} vertices`);
   console.log(`  Model: ${GPLATES_MODEL}`);
+  console.log(`  Checkpoints: ${CHECKPOINT_DIR}`);
 
   const displacements = new Map<string, Record<number, [number, number] | null>>();
   for (const v of vertices) displacements.set(v.id, {});
 
   for (const timeMa of TIME_STEPS_MA) {
-    process.stdout.write(`  ${timeMa}Ma (${TIME_LABELS[timeMa as TimeMa]}): `);
-    const results = await reconstructAll(vertices, timeMa);
-    for (const [vId, result] of results) {
-      const entry = displacements.get(vId)!;
-      entry[timeMa] = result.lat !== null && result.lng !== null
-        ? [result.lat, result.lng]
-        : null;  // null = point was subducted / didn't exist at this time
+    const checkpointPath = join(CHECKPOINT_DIR, `${area}-${timeMa}Ma.json`);
+
+    let stepResults: Record<string, [number, number] | null>;
+
+    if (existsSync(checkpointPath)) {
+      console.log(`  ${timeMa}Ma: loading checkpoint...`);
+      stepResults = JSON.parse(readFileSync(checkpointPath, 'utf-8'));
+    } else {
+      process.stdout.write(`  ${timeMa}Ma (${TIME_LABELS[timeMa as TimeMa]}): `);
+      const results = await reconstructAll(vertices, timeMa);
+      stepResults = {};
+      for (const [vId, result] of results) {
+        stepResults[vId] = result.lat !== null && result.lng !== null
+          ? [result.lat, result.lng]
+          : null;
+      }
+      writeFileSync(checkpointPath, JSON.stringify(stepResults), 'utf-8');
+      console.log(`  → checkpoint saved`);
+    }
+
+    for (const [vId, pos] of Object.entries(stepResults)) {
+      displacements.get(vId)![timeMa] = pos;
     }
   }
 
