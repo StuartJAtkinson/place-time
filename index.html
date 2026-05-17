@@ -105,34 +105,31 @@
 
   <div id="time-panel">
 
-    <!-- Deep time milestones -->
-    <div class="time-row">
-      <span class="era-label">Deep time</span>
-      <button class="era-btn" data-year="-13800000000" data-label="Big Bang">Big Bang<br><small style="opacity:.6">13.8 Ga</small></button>
-      <button class="era-btn" data-year="-4540000000"  data-label="Earth forms">Earth<br><small style="opacity:.6">4.54 Ga</small></button>
-      <button class="era-btn" data-year="-3800000000"  data-label="Oceans form">Oceans<br><small style="opacity:.6">3.8 Ga</small></button>
-      <button class="era-btn" data-year="-2400000000"  data-label="O₂ event">O₂<br><small style="opacity:.6">2.4 Ga</small></button>
-      <button class="era-btn" data-year="-540000000"   data-label="Cambrian">Cambrian<br><small style="opacity:.6">540 Ma</small></button>
-      <button class="era-btn" data-year="-335000000"   data-label="Pangea assembled">Pangea<br><small style="opacity:.6">335 Ma</small></button>
-      <button class="era-btn" data-year="-175000000"   data-label="Pangea breakup">Breakup<br><small style="opacity:.6">175 Ma</small></button>
-      <button class="era-btn" data-year="-66000000"    data-label="K-Pg extinction">K-Pg<br><small style="opacity:.6">66 Ma</small></button>
-      <button class="era-btn" data-year="-300000"      data-label="Homo sapiens">Humans<br><small style="opacity:.6">300 ka</small></button>
-      <button class="era-btn" data-year="-10000"       data-label="End of last Ice Age">Ice Age end<br><small style="opacity:.6">10 ka</small></button>
-    </div>
-
-    <!-- Historical milestones -->
-    <div class="time-row">
-      <span class="era-label">History</span>
-      <button class="era-btn" data-year="-6500" data-label="Doggerland submerged">Doggerland<br><small style="opacity:.6">6500 BCE</small></button>
-      <button class="era-btn" data-year="-3000" data-label="First cities">Cities<br><small style="opacity:.6">3000 BCE</small></button>
-      <button class="era-btn" data-year="-500"  data-label="Classical antiquity">Classical<br><small style="opacity:.6">500 BCE</small></button>
-      <button class="era-btn active" data-year="0" data-label="Common Era">0 CE</button>
-      <button class="era-btn" data-year="43"   data-label="Roman Britain">Roman<br><small style="opacity:.6">43 CE</small></button>
-      <button class="era-btn" data-year="1066" data-label="Norman conquest">Norman<br><small style="opacity:.6">1066</small></button>
-      <button class="era-btn" data-year="1086" data-label="Domesday Book">Domesday<br><small style="opacity:.6">1086</small></button>
-      <button class="era-btn" data-year="1750" data-label="Industrial revolution">Industrial<br><small style="opacity:.6">1750</small></button>
-      <button class="era-btn" data-year="1900" data-label="1900">1900</button>
-      <button class="era-btn" data-year="2024" data-label="Today">Today</button>
+    <!-- All era milestones — single scrollable row -->
+    <div class="time-row" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:0.15rem;">
+      <span class="era-label" style="flex-shrink:0">Deep time</span>
+      <button class="era-btn" data-year="-13800000000">Big Bang<br><small>13.8 Ga</small></button>
+      <button class="era-btn" data-year="-4540000000">Earth<br><small>4.54 Ga</small></button>
+      <button class="era-btn" data-year="-3800000000">Oceans<br><small>3.8 Ga</small></button>
+      <button class="era-btn" data-year="-2400000000">O₂<br><small>2.4 Ga</small></button>
+      <button class="era-btn" data-year="-540000000">Cambrian<br><small>540 Ma</small></button>
+      <button class="era-btn" data-year="-335000000">Pangea<br><small>335 Ma</small></button>
+      <button class="era-btn" data-year="-175000000">Breakup<br><small>175 Ma</small></button>
+      <button class="era-btn" data-year="-66000000">K-Pg<br><small>66 Ma</small></button>
+      <button class="era-btn" data-year="-300000">Humans<br><small>300 ka</small></button>
+      <button class="era-btn" data-year="-10000">Ice Age<br><small>10 ka</small></button>
+      <span style="width:1px;background:#2a2a3e;margin:0 0.3rem;align-self:stretch;flex-shrink:0"></span>
+      <span class="era-label" style="flex-shrink:0">History</span>
+      <button class="era-btn" data-year="-6500">Doggerland<br><small>6500 BCE</small></button>
+      <button class="era-btn" data-year="-3000">Cities<br><small>3000 BCE</small></button>
+      <button class="era-btn" data-year="-500">Classical<br><small>500 BCE</small></button>
+      <button class="era-btn active" data-year="0">0 CE</button>
+      <button class="era-btn" data-year="43">Roman<br><small>43 CE</small></button>
+      <button class="era-btn" data-year="1066">Norman<br><small>1066</small></button>
+      <button class="era-btn" data-year="1086">Domesday<br><small>1086</small></button>
+      <button class="era-btn" data-year="1750">Industrial<br><small>1750</small></button>
+      <button class="era-btn" data-year="1900">1900</button>
+      <button class="era-btn" data-year="2024">Today</button>
     </div>
 
     <!-- CE fine slider -->

@@ -150,15 +150,30 @@ const yearDisplay = document.getElementById('year-display') as HTMLSpanElement;
 const ceSlider    = document.getElementById('ce-slider')   as HTMLInputElement;
 const ceInput     = document.getElementById('ce-input')    as HTMLInputElement;
 
+// Big Bang threshold — before Earth formed, no stars, pure void
+const BIG_BANG_YEAR  = -13_800_000_000;
+const EARTH_FORMED   =  -4_540_000_000;
+
 function setYear(y: number): void {
   currentYear = y;
   yearDisplay.textContent = formatYear(y);
-  // Keep CE slider and input in sync when year is in CE range
+
   if (y >= 0 && y <= 2024) {
     ceSlider.value = String(y);
     ceInput.value  = String(y);
   }
-  // Update active button
+
+  // Skybox: pure black before Earth formed (no stars yet in early universe context),
+  // otherwise show Cesium's star field
+  const preEarth = y < EARTH_FORMED;
+  viewer.scene.skyBox.show = !preEarth;
+  viewer.scene.backgroundColor = preEarth
+    ? Cesium.Color.BLACK
+    : Cesium.Color.fromCssColorString('#060608');
+
+  // Globe visibility — no globe before Earth formed
+  viewer.scene.globe.show = y > EARTH_FORMED;
+
   document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.year ?? '999') === y);
   });
