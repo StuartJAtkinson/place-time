@@ -4,9 +4,58 @@ import { COLUMN_TOP_M } from '../core/hexalog.js';
 Cesium.Ion.defaultAccessToken = '';
 
 // ---------------------------------------------------------------------------
-// Time threshold
+// Era → Grid mapping
+// Each era shows exactly ONE grid. H3 grids cover the whole globe with correct
+// spherical tessellation (no polar distortion). The custom aligned grid covers
+// the UK area for the modern human era.
+//
+// Grid resolution increases as time approaches the present:
+//   pre-Earth:          no globe
+//   -4.54 Ga → -540 Ma: H3 res 1  ( 842 cells, ~1800km edge) — continental drift
+//   -540 Ma  → -10 ka:  H3 res 2  (5882 cells,  ~650km edge) — species ranges
+//   -10 ka   → 0 CE:    H3 res 3  (41k  cells,   ~73km edge) — human migration
+//   0 CE     → present: aligned   (54k  cells,   ~3.3km edge) — settlement scale
 // ---------------------------------------------------------------------------
-const HUMAN_ERA_THRESHOLD = -10_000;
+interface EraGrid {
+  readonly id:       string;
+  readonly file:     string;
+  readonly minYear:  number;
+  readonly maxYear:  number;
+  readonly color:    Cesium.Color;
+  readonly width:    number;
+}
+
+const ERA_GRIDS: readonly EraGrid[] = [
+  {
+    id: 'h3r1', file: '/grid-h3-r1.geojson',
+    minYear: -4_540_000_000, maxYear: -540_000_000,
+    color: Cesium.Color.WHITE.withAlpha(0.28), width: 1.2,
+  },
+  {
+    id: 'h3r2', file: '/grid-h3-r2.geojson',
+    minYear: -540_000_000, maxYear: -10_000,
+    color: Cesium.Color.WHITE.withAlpha(0.32), width: 1.3,
+  },
+  {
+    id: 'h3r3', file: '/grid-h3-r3.geojson',
+    minYear: -10_000, maxYear: 0,
+    color: Cesium.Color.WHITE.withAlpha(0.38), width: 1.5,
+  },
+  {
+    id: 'uk33', file: '/grid-uk.geojson',
+    minYear: 0, maxYear: Infinity,
+    color: Cesium.Color.WHITE.withAlpha(0.42), width: 1.8,
+  },
+] as const;
+
+/** Return the grid ID for a given year, or null if pre-Earth. */
+function gridIdForYear(year: number): string | null {
+  if (year < -4_540_000_000) return null;         // pre-Earth
+  for (const g of ERA_GRIDS) {
+    if (year >= g.minYear && year < g.maxYear) return g.id;
+  }
+  return ERA_GRIDS[ERA_GRIDS.length - 1].id;      // present / future
+}
 
 // ---------------------------------------------------------------------------
 // Viewer
@@ -34,28 +83,20 @@ viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
 viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#060608');
 
 // ---------------------------------------------------------------------------
-// Camera controls
+// Camera constraints
 // ---------------------------------------------------------------------------
-
-// Constrain rotation axis so the globe stays centred when fully zoomed out
 viewer.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
-
-// Unlimited zoom — user should be able to pull back to see the full sphere
 viewer.scene.screenSpaceCameraController.maximumZoomDistance = 1e9;
 viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
 
-// Clamp pitch: -90° (straight down) to -45° (no looking at horizon)
-const PITCH_MIN = -Math.PI / 2;   // straight down
-const PITCH_MAX = -Math.PI / 4;   // 45° from horizontal
-
+// Pitch clamp: -90° (straight down) → -45° (no horizon view)
 viewer.scene.preRender.addEventListener(() => {
-  const pitch = viewer.camera.pitch;
-  if (pitch > PITCH_MAX) {
+  if (viewer.camera.pitch > -Math.PI / 4) {
     viewer.camera.setView({
       orientation: {
         heading: viewer.camera.heading,
-        pitch: PITCH_MAX,
-        roll: 0,
+        pitch:   -Math.PI / 4,
+        roll:    0,
       },
     });
   }
@@ -67,90 +108,58 @@ viewer.camera.setView({
 });
 
 // ---------------------------------------------------------------------------
-// Grid definitions — only ONE shows at a time based on currentYear
+// Grid state — lazy loading, exactly one visible at a time
 // ---------------------------------------------------------------------------
-const GRIDS = {
-  // Deep-time coarse background (~200km edge, 6.9k cells, covers whole Earth)
-  global: {
-    id: 'global', path: '/grid-global.geojson',
-    wireColor: Cesium.Color.WHITE.withAlpha(0.3),
-    wireWidth: 1.2,
-  },
-  // Human-era fine leaf (~3.3km edge, UK area, 54k cells)
-  uk: {
-    id: 'uk', path: '/grid-uk.geojson',
-    wireColor: Cesium.Color.WHITE.withAlpha(0.4),
-    wireWidth: 1.8,
-  },
-} as const;
-
-type GridId = keyof typeof GRIDS;
-
-// Tiny non-zero fill so interior of cell is pickable
 const PICK_ALPHA = 0.01;
+const loadedSources  = new Map<string, Cesium.GeoJsonDataSource>();
+const entityToGridId = new Map<Cesium.Entity, string>();
 
+let activeGridId: string | null = null;
 let selectedPrism: Cesium.Entity | null = null;
-let activeGridId: GridId = 'uk';
-const gridDataSources = new Map<GridId, Cesium.GeoJsonDataSource>();
-const entityToGrid    = new Map<Cesium.Entity, GridId>();
+let loadingGridId: string | null = null;   // prevent duplicate loads
 
-// ---------------------------------------------------------------------------
-// Load a grid as flat wireframe at the surface (height = 0)
-// The prism selected by the user then extends UP to COLUMN_TOP_M.
-// Below-surface cross sections are just cuts through the same cone — no need
-// for a separate lower sphere. The single upper sphere at COLUMN_TOP_M is the
-// reference, and any depth below is simply a cross-section of that same cone.
-// ---------------------------------------------------------------------------
-async function loadGrid(id: GridId): Promise<void> {
-  if (gridDataSources.has(id)) return;
-  const def = GRIDS[id];
-  const ds  = new Cesium.GeoJsonDataSource(id);
-  await ds.load(def.path);
+async function ensureGridLoaded(id: string): Promise<void> {
+  if (loadedSources.has(id) || loadingGridId === id) return;
+  loadingGridId = id;
+
+  const def = ERA_GRIDS.find(g => g.id === id);
+  if (!def) return;
+
+  const ds = new Cesium.GeoJsonDataSource(id);
+  await ds.load(def.file);
 
   for (const entity of ds.entities.values) {
     if (!entity.polygon) continue;
     entity.polygon.material = new Cesium.ColorMaterialProperty(
-      def.wireColor.withAlpha(PICK_ALPHA)
+      def.color.withAlpha(PICK_ALPHA)
     ) as unknown as Cesium.MaterialProperty;
     entity.polygon.outline      = new Cesium.ConstantProperty(true);
-    entity.polygon.outlineColor = new Cesium.ConstantProperty(def.wireColor);
-    entity.polygon.outlineWidth = new Cesium.ConstantProperty(def.wireWidth);
+    entity.polygon.outlineColor = new Cesium.ConstantProperty(def.color);
+    entity.polygon.outlineWidth = new Cesium.ConstantProperty(def.width);
     entity.polygon.height       = new Cesium.ConstantProperty(0);
-    entityToGrid.set(entity, id);
+    entityToGridId.set(entity, id);
   }
 
-  gridDataSources.set(id, ds);
+  loadedSources.set(id, ds);
+  loadingGridId = null;
 }
 
-function applyGridVisibility(): void {
-  const inHumanEra = currentYear >= HUMAN_ERA_THRESHOLD;
-  activeGridId = inHumanEra ? 'uk' : 'global';
-
-  for (const [id, ds] of gridDataSources) {
+function applyGridVisibility(targetId: string | null): void {
+  for (const [id, ds] of loadedSources) {
     if (!viewer.dataSources.contains(ds)) viewer.dataSources.add(ds);
-    // Exactly one grid visible — whichever matches the current era
-    ds.show = (id === activeGridId);
+    ds.show = (id === targetId);
   }
+  activeGridId = targetId;
 }
-
-// Load global first (small, fast), then UK asynchronously
-async function preloadGrids(): Promise<void> {
-  await loadGrid('global');
-  applyGridVisibility();
-  loadGrid('uk').then(() => applyGridVisibility());
-}
-preloadGrids();
 
 // ---------------------------------------------------------------------------
-// Select / deselect — show prism only upward (COLUMN_TOP_M)
-// The "below" portion is implied: drilling down is a cross-section of the cone
+// Select / deselect — prism extends UP to COLUMN_TOP_M above surface
+// (below-surface cross-sections are implicit cuts through the same cone)
 // ---------------------------------------------------------------------------
 function selectCell(entity: Cesium.Entity): void {
   if (selectedPrism) { viewer.entities.remove(selectedPrism); selectedPrism = null; }
-
   const hierarchy = entity.polygon!.hierarchy!.getValue(Cesium.JulianDate.now());
   if (!hierarchy) return;
-
   selectedPrism = viewer.entities.add({
     polygon: {
       hierarchy,
@@ -161,7 +170,7 @@ function selectCell(entity: Cesium.Entity): void {
       outlineColor: Cesium.Color.RED.withAlpha(0.9),
       outlineWidth: 2.5,
       height: 0,
-      extrudedHeight: COLUMN_TOP_M,  // 10km above surface — top of the cone
+      extrudedHeight: COLUMN_TOP_M,
     } as unknown as Cesium.PolygonGraphics,
   });
 }
@@ -178,8 +187,8 @@ viewer.screenSpaceEventHandler.setInputAction(
     const picked = viewer.scene.pick(event.position);
     if (!Cesium.defined(picked) || !(picked.id instanceof Cesium.Entity)) { deselect(); return; }
     const entity = picked.id as Cesium.Entity;
-    if (entity === selectedPrism) { deselect(); return; }
-    if (!entityToGrid.has(entity)) { deselect(); return; }
+    if (entity === selectedPrism)         { deselect(); return; }
+    if (!entityToGridId.has(entity))      { deselect(); return; }
     selectCell(entity);
   },
   Cesium.ScreenSpaceEventType.LEFT_CLICK
@@ -189,7 +198,6 @@ viewer.screenSpaceEventHandler.setInputAction(
 // Time state
 // ---------------------------------------------------------------------------
 let currentYear = 0;
-
 const EARTH_FORMED = -4_540_000_000;
 
 function formatYear(y: number): string {
@@ -205,11 +213,12 @@ const yearDisplay = document.getElementById('year-display') as HTMLSpanElement;
 const ceSlider    = document.getElementById('ce-slider')   as HTMLInputElement;
 const ceInput     = document.getElementById('ce-input')    as HTMLInputElement;
 
-function setYear(y: number): void {
+async function setYear(y: number): Promise<void> {
   currentYear = y;
   yearDisplay.textContent = formatYear(y);
   if (y >= 0 && y <= 2024) { ceSlider.value = String(y); ceInput.value = String(y); }
 
+  // Globe and skybox visibility
   const preEarth = y < EARTH_FORMED;
   viewer.scene.skyBox.show = !preEarth;
   viewer.scene.globe.show  = !preEarth;
@@ -217,14 +226,40 @@ function setYear(y: number): void {
     ? Cesium.Color.BLACK
     : Cesium.Color.fromCssColorString('#060608');
 
-  applyGridVisibility();
+  // Deselect when era changes
   deselect();
 
+  // Determine the correct grid for this year
+  const targetId = gridIdForYear(y);
+
+  // Load on demand then show — never interrupts ongoing interaction
+  if (targetId && !loadedSources.has(targetId)) {
+    applyGridVisibility(activeGridId); // keep current while loading
+    await ensureGridLoaded(targetId);
+  }
+
+  applyGridVisibility(targetId);
+
+  // Update era button highlights
   document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.year ?? '999') === y);
   });
 }
 
+// Warm up the first two grids on startup so switching feels instant
+async function warmup(): Promise<void> {
+  await ensureGridLoaded('h3r1');    // 404 KB — fast
+  await ensureGridLoaded('h3r2');    // 2.7 MB — quick
+  await setYear(0);                  // set initial year (loads h3r3 if needed, else uk33)
+  // Load the rest in background so they're ready when the user navigates
+  ensureGridLoaded('h3r3');
+  ensureGridLoaded('uk33');
+}
+warmup();
+
+// ---------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------
 document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
   btn.addEventListener('click', () => setYear(parseInt(btn.dataset.year!)));
 });
@@ -237,8 +272,6 @@ ceInput.addEventListener('change', () => {
   const y = parseInt(ceInput.value);
   if (!isNaN(y)) { if (y >= 0 && y <= 2024) ceSlider.value = String(y); setYear(y); }
 });
-
-setYear(0);
 
 // ---------------------------------------------------------------------------
 // Keyboard
