@@ -47,15 +47,19 @@ viewer.camera.setView({
 // Grid definitions
 // ---------------------------------------------------------------------------
 const GRIDS = {
-  res7: {
-    id: 'res7', path: '/five-towns-grid-res7.geojson',
-    wireColor: Cesium.Color.fromCssColorString('#2a2a2a').withAlpha(0.9),
-    wireWidth: 1.0,
+  // Always visible — coarse global wireframe (~200km edge, 6.9k cells)
+  global: {
+    id: 'global', path: '/grid-global.geojson',
+    wireColor: Cesium.Color.WHITE.withAlpha(0.35),
+    wireWidth: 1.2,
+    alwaysShow: true,
   },
-  res8: {
-    id: 'res8', path: '/five-towns-grid-res8.geojson',
-    wireColor: Cesium.Color.fromCssColorString('#303030').withAlpha(0.85),
-    wireWidth: 0.6,
+  // UK fine leaf grid (~3.3km edge, 54k cells) — shown in human era
+  uk: {
+    id: 'uk', path: '/grid-uk.geojson',
+    wireColor: Cesium.Color.WHITE.withAlpha(0.45),
+    wireWidth: 1.8,
+    alwaysShow: false,
   },
 } as const;
 
@@ -96,20 +100,19 @@ async function loadGrid(id: GridId): Promise<void> {
 
 // Preload both grids; visibility toggled by time
 async function preloadGrids(): Promise<void> {
-  await Promise.all([loadGrid('res7'), loadGrid('res8')]);
+  // Load global coarse immediately; start UK fine in parallel
+  await loadGrid('global');
   applyGridVisibility();
+  loadGrid('uk').then(() => applyGridVisibility()); // UK loads async, applies when ready
 }
 
 function applyGridVisibility(): void {
-  const ds7 = gridDataSources.get('res7');
-  const ds8 = gridDataSources.get('res8');
-  if (ds7 && !viewer.dataSources.contains(ds7)) viewer.dataSources.add(ds7);
-  if (ds8 && !viewer.dataSources.contains(ds8)) viewer.dataSources.add(ds8);
-
-  const useRes8 = currentYear >= HUMAN_ERA_THRESHOLD;
-  activeGridId  = useRes8 ? 'res8' : 'res7';
-  if (ds7) ds7.show = !useRes8;
-  if (ds8) ds8.show = useRes8;
+  for (const [id, ds] of gridDataSources) {
+    if (!viewer.dataSources.contains(ds)) viewer.dataSources.add(ds);
+    const def = GRIDS[id as GridId];
+    ds.show = def.alwaysShow || currentYear >= HUMAN_ERA_THRESHOLD;
+  }
+  activeGridId = currentYear >= HUMAN_ERA_THRESHOLD ? 'uk' : 'global';
 }
 
 preloadGrids();
@@ -121,17 +124,10 @@ function selectCell(entity: Cesium.Entity): void {
   if (selectedPrism) {
     viewer.entities.remove(selectedPrism);
     selectedPrism = null;
-    // Reset globe opacity
-    viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
-    viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
   }
 
   const hierarchy = entity.polygon!.hierarchy!.getValue(Cesium.JulianDate.now());
   if (!hierarchy) return;
-
-  // Make globe translucent so the prism appears to pass through
-  viewer.scene.globe.translucency.frontFaceAlpha = 0.55;
-  viewer.scene.globe.translucency.backFaceAlpha  = 0.55;
 
   selectedPrism = viewer.entities.add({
     polygon: {
@@ -152,8 +148,6 @@ function deselect(): void {
   if (selectedPrism) {
     viewer.entities.remove(selectedPrism);
     selectedPrism = null;
-    viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
-    viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
   }
 }
 

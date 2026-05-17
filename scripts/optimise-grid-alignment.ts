@@ -45,7 +45,7 @@ export const PTR_LEAF = 10;         // finest Place-Time Resolution
 export const H3_RES_LEAF = 9;       // corresponding H3 resolution
 
 // Edge length of PTR-10 cell in km (H3 res 9 average)
-export const LEAF_EDGE_KM = 2.154;
+export const LEAF_EDGE_KM = 3.3;    // ~6× the previous 0.554km leaf — town/market-town scale
 
 // In degrees at equator (1° ≈ 111.32km)
 const LEAF_EDGE_DEG = LEAF_EDGE_KM / 111.32;
