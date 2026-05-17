@@ -49,6 +49,14 @@ export const PTR_LEAF = 10;          // finest Place-Time Resolution (the leaf)
 export const H3_RES_LEAF = 9;        // H3 resolution at the leaf (do not exceed)
 export const PTR_LEVELS = 11;        // 0 through 10 inclusive
 
+// Physical column bounds — uniform across all cells globally
+// Top:    10,000m above sea level — clears Mt Everest (8,849m) + tallest structure (Burj Khalifa 830m) + margin
+// Bottom: 12,000m below sea level — below Challenger Deep (10,935m) + margin
+// Span:   22,000m total — contains every geographically meaningful surface feature on Earth
+export const COLUMN_TOP_M    =  10_000;
+export const COLUMN_BOTTOM_M = -12_000;
+export const COLUMN_SPAN_M   = COLUMN_TOP_M - COLUMN_BOTTOM_M;  // 22,000m
+
 /** Convert a Place-Time Resolution (0–10) to the corresponding H3 resolution (0–9). */
 export function ptrToH3Res(ptr: number): number {
   return Math.min(Math.round((ptr / PTR_LEAF) * H3_RES_LEAF), H3_RES_LEAF);

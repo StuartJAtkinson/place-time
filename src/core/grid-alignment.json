@@ -1,0 +1,18 @@
+{
+  "description": "Optimal hex grid alignment for PTR-10 (human settlement scale)",
+  "generated": "2026-05-17T06:06:13.894Z",
+  "ptrLeaf": 10,
+  "h3ResLeaf": 9,
+  "edgeKm": 2.154,
+  "edgeDeg": 0.019349622709306503,
+  "rotationDeg": 20.999999999999996,
+  "offsetLng": 0.0023219547251167815,
+  "offsetLat": 0.014439176519817028,
+  "score": 8004.7538651100385,
+  "scoreImprovement": "4.0%",
+  "sampleSize": 5875,
+  "popFilter": {
+    "min": 1000,
+    "max": 300000
+  }
+}

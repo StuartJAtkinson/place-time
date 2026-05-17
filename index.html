@@ -3,158 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Place-Time — Five Towns Spatial History</title>
+  <title>Place-Time</title>
   <link rel="stylesheet" href="/node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a14; font-family: system-ui, sans-serif; color: #e0e0e0; }
-
-    #cesiumContainer { width: 100%; height: 100%; }
-
-    /* Cesium credit/logo - keep but push to corner */
+    html, body, #cesiumContainer { width: 100%; height: 100%; overflow: hidden; background: #060608; }
     .cesium-widget-credits { display: none; }
 
-    #overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    header {
-      pointer-events: all;
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      padding: 0.5rem 1rem;
-      background: rgba(10,10,20,0.85);
-      border-bottom: 1px solid #1a1a3e;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      backdrop-filter: blur(4px);
-    }
-    header h1 { font-size: 1.1rem; color: #e94560; letter-spacing: 0.05em; }
-    header .subtitle { font-size: 0.8rem; color: #666; }
-
-    #controls {
-      pointer-events: all;
-      position: absolute;
-      top: 3rem; left: 0; right: 0;
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-      padding: 0.5rem 1rem;
-      background: rgba(10,10,20,0.8);
-      border-bottom: 1px solid #1a1a3e;
-      flex-wrap: wrap;
-      backdrop-filter: blur(4px);
-    }
-
-    .control-group { display: flex; flex-direction: column; gap: 0.2rem; }
-    label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
-    #year-slider { width: 280px; accent-color: #e94560; cursor: pointer; }
-    #year-display { font-size: 1rem; font-weight: bold; color: #e94560; min-width: 90px; }
-
-    .layer-toggles { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .layer-btn {
-      padding: 0.15rem 0.5rem;
-      font-size: 0.7rem;
-      border-radius: 3px;
-      border: 1px solid;
-      cursor: pointer;
-      background: transparent;
-      color: #e0e0e0;
-      transition: all 0.15s;
-      pointer-events: all;
-    }
-    .layer-btn.active { color: #0a0a14; }
-
-    #view-toggle {
-      pointer-events: all;
-      position: absolute;
-      top: 3rem;
-      right: 1rem;
-      display: flex;
-      gap: 0.3rem;
-      padding: 0.5rem 0;
-    }
-    .view-btn {
-      padding: 0.2rem 0.6rem;
-      font-size: 0.7rem;
-      border-radius: 3px;
-      border: 1px solid #444;
-      cursor: pointer;
-      background: rgba(10,10,20,0.8);
-      color: #aaa;
-      pointer-events: all;
-    }
-    .view-btn.active { background: #e94560; color: #fff; border-color: #e94560; }
-
-    #info-panel {
-      pointer-events: all;
+    #hint {
       position: absolute;
       bottom: 1rem;
-      right: 1rem;
-      width: 290px;
-      max-height: 45vh;
-      overflow-y: auto;
-      background: rgba(10,10,20,0.92);
-      border: 1px solid #1a1a3e;
-      border-radius: 6px;
-      padding: 0.8rem;
-      font-size: 0.78rem;
-      backdrop-filter: blur(4px);
-    }
-    #info-panel h3 { font-size: 0.9rem; color: #e94560; margin-bottom: 0.4rem; }
-    .info-section { margin-bottom: 0.6rem; }
-    .info-section h4 { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
-    .info-item { padding: 0.1rem 0; border-bottom: 1px solid #1a1a3e; line-height: 1.4; }
-    .tag { font-family: monospace; font-size: 0.68rem; background: #1a1a3e; padding: 0.1rem 0.3rem; border-radius: 2px; }
-
-    #credits {
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: system-ui, sans-serif;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.3);
       pointer-events: none;
-      position: absolute;
-      bottom: 0.4rem;
-      left: 0.8rem;
-      font-size: 0.6rem;
-      color: #444;
+      letter-spacing: 0.06em;
     }
   </style>
 </head>
 <body>
   <div id="cesiumContainer"></div>
-
-  <div id="overlay">
-    <header>
-      <h1>Place-Time</h1>
-      <span class="subtitle">Five Towns — Hexagonal Spatial History · Geological → Political</span>
-    </header>
-
-    <div id="controls">
-      <div class="control-group">
-        <label>Year</label>
-        <div style="display:flex;align-items:center;gap:0.5rem;">
-          <input type="range" id="year-slider" min="-3400" max="2100" value="1086" step="1" />
-          <span id="year-display">1086 CE</span>
-        </div>
-      </div>
-      <div class="control-group">
-        <label>Layers</label>
-        <div class="layer-toggles" id="layer-toggles"></div>
-      </div>
-    </div>
-
-    <div id="info-panel">
-      <h3>Click the globe</h3>
-      <p style="color:#666;font-size:0.72rem;">Select a location to see what existed there at the chosen year.</p>
-    </div>
-
-    <div id="credits">
-      OSM © OpenStreetMap contributors · BGS OGL · ONS OGL · Cliopatria CC-BY-NC · Palmer/Hull ODbL
-    </div>
-  </div>
-
+  <div id="hint">CLICK a cell to show its column · ESC to deselect · G to home</div>
   <script type="module" src="/src/ui/app.ts"></script>
 </body>
 </html>
