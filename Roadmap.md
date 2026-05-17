@@ -1,197 +1,168 @@
 # Place-Time Roadmap
 
-**Updated:** 2026-05-17 (Phases 0–4 complete; data bugs fixed; QGIS validated via MCP)
-
-> ⚠️ **This document is superseded by `research/07-development-roadmap.md`**  
-> Phase 0 decisions are now validated. See the development roadmap for the full phased plan.
+**Updated:** 2026-05-17
 
 ---
 
-## Executive Summary (Phases 0–3 Complete + Phase 4 CLI working)
+## What This Is
 
-| Decision | Status | Details |
-|----------|--------|---------|
-| Hex system | ✅ **H3 confirmed** | Apache 2.0, global coverage, mature tooling |
-| Resolution (Five Towns) | ✅ **Res 8 primary, Res 7 secondary** | ~2270 / 323 cells generated |
-| Budget | ✅ **£0** | All primary sources are free |
-| **Dual-logarithmic spacetime** | ✅ **Implemented** | `hexalog.ts` — H3 resolution scales with time position |
-| **Embedding search pipeline** | ✅ **Implemented** | `embeddings.ts` — Ollama + cosine similarity for boundary discovery |
-| **CLI query tool** | ✅ **Working** | `src/cli/query.ts` — place + year → H3 cell + boundaries + domesday + geology; constituency + ward now use point-in-polygon (not name matching) |
-| **QGIS project** | ✅ **Generated** | `export/place-time-five-towns.qlr` — 11 layers, load via Layer > Add from Layer Definition File |
-| **Web UI** | ✅ **Substantially complete** | `index.html` + `src/ui/app.ts` — time slider, 11 layer toggles, click-to-query with Cliopatria PiP all working |
-
-### Core Architecture: HexaLog Space
-
-The Place-Time framework uses a **dual-logarithmic spacetime grid** (`src/core/hexalog.ts`):
-
-- **Time axis** (log₁₀): Big Bang (t=0) → year 2000 (t=1) — 13.8G years compressed to [0,1]
-- **Space axis** (log₁₀): Earth-scale hexes (res 0) → 1-meter hexes (res 15) — logarithmic resolution
-
-At any `(timePos, spacePos)`:
-- A calendar year is computed via the timescale engine
-- An H3 resolution is computed via `resolutionFromTimePos(timePos)`
-- An H3 cell is resolved at that resolution for the given lat/lng
-
-**Key insight**: Time position → H3 resolution → spatial precision
-- Deep time (Big Bang) → res 0 (~5M km² hexes — continental scale)
-- Year 1086 (Doomsday) → res 10 (~115m edge — building scale)
-- Year 2000 (Modern) → res 12 (~16m edge — street scale)
-
-This means the entire 13.8-billion-year history of the universe fits in bounded H3 cells, with recent epochs getting fine-grained resolution.
-
-### Critical Findings from Phase 0
-
-1. **OpenDomesday provides point locations only** — not polygon boundaries. Use Cliopatria for polygon boundaries + OpenDomesday for settlement attributes.
-
-2. **ISEGrid is not a viable alternative** — it's an OS internal product without public FOSS access. H3 is confirmed as the only choice.
-
-3. **No budget required for Phase 0-4** — all primary sources are free (Geofabrik, ONS, Electoral Commission, OpenDomesday, Cliopatria, fraxen/tectonicplates, BGS).
-
-4. **Cliopatria license (CC-BY-NC) requires non-commercial use** — commercial applications need to seek alternatives or negotiate.
+A hexagonal geological-to-political spatial index for Five Towns, West Yorkshire (Pontefract, Castleford, Featherstone, Knottingley, Normanton). The goal: make gerrymandering and historical boundary shifts visible by stacking geological → Domesday → medieval → modern political layers on a single interactive globe.
 
 ---
 
-## Validated Technical Decisions
-
-| Decision | Resolution | Notes |
-|----------|-----------|-------|
-| H3 vs ISEGrid vs custom | **H3 selected** | Apache 2.0, global, mature (6K stars), no custom development needed |
-| H3 resolution for Five Towns | **Res 8 primary** | ~8.7km edge, ~500 cells, appropriate for constituency analysis |
-| H3 resolution for UK regional | **Res 6-7** | ~8km (res 6) or ~1.2km (res 7) |
-| H3 resolution for global | **Res 4-5** | ~22-650km edge for world view |
-| Storage approach | **File-based (GeoJSON bundles)** | No database required for Phase 0-4, rbush for spatial indexing |
-| Coordinate system | **WGS84 (EPSG:4326) primary** | BNG (EPSG:27700) for UK calculations via GDAL transformation |
-| QGIS output format | **GeoJSON + QLR + GPKG** | .geojson for web, .qlr for project restore, .gpkg for offline bundles |
-
----
-
-## Phase Structure (Validated)
+## Phase Status
 
 ```
-Phase 0: ✅ Research & Data Audit (COMPLETE)
-    └── 7 research documents produced
-    └── All sources identified and scored
-    └── Budget £0 confirmed
-
-Phase 1: ✅ Hex Grid Calibration + Geological Base — COMPLETE
-    ├── ✅ 1.1: H3 grids — res 7 (187 cells) + res 8 (1307 cells), correctly placed over Five Towns
-    │         Bug fixed: polygonToCells was receiving [lng,lat] not [lat,lng]; output path was also wrong
-    ├── ✅ 1.2: Geological data — tectonic_plates (54) + geological_provinces/BGS (49) + .qlr files
-    └── ✅ 1.3: Validated via QGIS MCP — layers align over West Yorkshire
-
-Phase 2: ✅ Historical Boundaries — COMPLETE
-    ├── ✅ 2.1: Five Towns Domesday settlements (10 places, Palmer/Hull records)
-    │         NOTE: OpenDomesday REST API offline. Full Yorkshire: https://hydra.hull.ac.uk/resources/hull:domesdayDisplaySet
-    ├── ✅ 2.2: Yorkshire OSM settlements (420 places) — fixed: out tags→out body for geometry
-    └── ✅ 2.3: Cliopatria UK temporal polities (799 features, 161–2024 CE)
-
-Phase 3: ✅ Political Boundaries — COMPLETE
-    ├── ✅ 3.1: Wakefield MDC boundary (1 feature)
-    ├── ✅ 3.2: West Yorkshire boundary (1 feature)
-    ├── ✅ 3.3: Westminster constituencies — 2 features: Normanton/Pontefract/Castleford + Hemsworth
-    │         Fixed: was 12 (bbox); now PiP-filtered to constituencies containing a Five Towns point
-    ├── ✅ 3.4: Electoral wards — 21 Wakefield MDC wards (GSS codes E05001444–E05001464)
-    └── ⏳ 3.5: Gerrymandering compactness analysis — NOT STARTED (Polsby-Popper)
-
-Phase 4: ✅ Integration + QGIS Export — COMPLETE
-    ├── ✅ 4.1: QGIS project (export/place-time-five-towns.qlr) — 11 layers, portable relative paths (../data/...)
-    ├── ✅ 4.2: CLI query — place+year → H3 + PiP constituency/ward + Domesday + Cliopatria + geology
-    ├── ✅ 4.3: Web UI — time slider (-3400→2024), 11 layer toggles, click-to-query with Cliopatria PiP
-    └── ⏳ 4.4: Embedding pipeline — scaffolded (Ollama + cosine sim); searchSource() is placeholder
-
-Phase 5: Global Extension (OPTIONAL)
-    └── Only proceeds if: proof-of-concept validated + resources available
+Phase 0: ✅ Research & Data Audit
+Phase 1: ✅ Hex Grid Calibration + Geological Base
+Phase 2: ✅ Historical Boundaries
+Phase 3: ✅ Political Boundaries (compactness analysis pending)
+Phase 4: ✅ Integration + QGIS Export + Cesium Globe UI
+Phase 5: ✅ Tectonic Back-Propagation Mesh
+Phase 6: 🔲 Human-in-loop Validation + Gerrymandering Analysis
+Phase 7: 🔲 Embedding Pipeline + Knowledge Layer
+Phase 8: 🔲 Global Extension (optional)
 ```
 
 ---
 
-## Reference Data Sources (Validated)
+## Phase Details
 
-### Geological
-| Source | Format | Size | License | Status |
-|--------|--------|------|---------|--------|
-| fraxen/tectonicplates | GeoJSON | ~5 MB | ODC-BY | ✅ Primary (easy ingestion) |
-| GPlates 2.5 GeoData | Shapefile | ~500 MB | CC-BY | ⚠️ Secondary (large download) |
-| BGS OGC API | OGCAPI | Variable | OGL | ✅ UK detail (excellent) |
-| dhasterok/global_tectonics | QML | ~50 MB | Custom | ⚠️ Deferred (complex integration) |
+### Phase 0 — Research ✅
+- 7 research docs in `research/`
+- H3 selected (Apache 2.0, global, mature), all sources free (£0)
+- PTR scale defined: PTR-0 (planetary) → PTR-10 (human knowability, ~2.1km edge = H3 res 9)
 
-### Historical (English Focus)
-| Source | Format | Temporal | License | Status |
-|--------|--------|----------|---------|--------|
-| OpenDomesday | REST API (points) | 1086 only | ODC-ODbL | ✅ Primary (points only, not polygons) |
-| Cliopatria | GeoJSON | 3400BCE–2024CE | CC-BY-NC | ✅ Secondary (temporal polygons) |
-| aourednik/historical-basemaps | GeoJSON | 1500-1900 CE | Various | ⚠️ Supplementary |
-| OHMEC | GeoJSON | Variable | CC-BY-SA | ⚠️ Global only (not UK) |
+### Phase 1 — Hex Grid + Geology ✅
+- `data/five-towns/five-towns-grid-res7.geojson` (323 cells, ~3.9km)
+- `data/five-towns/five-towns-grid-res8.geojson` (2,270 cells, ~554m)
+- Grid alignment optimised: 7.7° rotation, 5.9% improvement vs axis-aligned
+- `data/geology/tectonic_plates.geojson` (54 features, fraxen/tectonicplates)
+- `data/geology/geological_provinces.geojson` (49 features, BGS OGC API 1:625k)
+- Global H3 grids: res 1 (842 cells), res 2 (5,882), res 3 (41,162) generated correctly via icosahedron projection
 
-### Political/Modern
-| Source | Format | License | Status |
-|--------|--------|---------|--------|
-| Geofabrik/OSM | Shapefile/GeoPackage | ODbL | ✅ Primary (free, daily updates) |
-| ONS Open Geography | GeoJSON/Shapefile | OGL | ✅ Primary (free) |
-| Electoral Commission | Shapefile | Click-use | ✅ Primary (free for non-commercial) |
-| Ordnance Survey | various | Commercial | ⚠️ Only if budget allows |
+### Phase 2 — Historical Boundaries ✅
+- `data/historical/domesday-five-towns.geojson` (10 settlements, Palmer/Hull records)
+  - Note: OpenDomesday REST API is offline; full Yorkshire at Hull Hydra (may have moved)
+- `data/historical/yorkshire-settlements-osm.geojson` (420 features, Overpass)
+- `data/historical/cliopatria-uk.geojson` (799 features, 161–2024 CE, CC-BY-NC)
 
-### Gerrymandering
-- **UK Electoral Commission** — current constituency definitions (free for non-commercial)
-- **Cliopatria** — historical boundaries for comparison (CC-BY-NC non-commercial)
-- **Range-Voting.org** — Polsby-Popper compactness methodology
+### Phase 3 — Political Boundaries ✅
+- `data/boundaries/wakefield-mdc.geojson`, `west-yorkshire.geojson`
+- `data/boundaries/constituencies-five-towns.geojson` (2 features: Normanton/Pontefract/Castleford + Hemsworth, PiP-filtered from 2022 Electoral Commission data)
+- `data/boundaries/wards-wakefield.geojson` (21 Wakefield MDC wards, GSS E05001444–E05001464)
+- ⏳ **3.5 Gerrymandering compactness** — Polsby-Popper analysis not started
 
----
+### Phase 4 — Integration + UI ✅
+- `export/place-time-five-towns.qlr` — combined QGIS project, 11 layers, relative paths
+- `src/cli/query.ts` — working CLI: `npx tsx src/cli/query.ts --place pontefract --year 1086`
+  - Returns H3 cell, Domesday settlements (radius), Cliopatria polities (PiP + temporal), constituency (PiP), ward (PiP), BGS geology
+- **Cesium globe** (`src/ui/app.ts`) — replaced Leaflet; dynamic H3 grid rendered from viewport frustum at runtime
+  - Single global H3 resolution: res 6 (~3.9km), all eras — one hex projection always visible
+  - Era buttons (one scrollable row): Deep Time (Big Bang → Ice Age) + History (Doggerland → Today)
+  - CE year slider (0–2024) with numeric input + year display
+  - Camera: pitch clamped -90°→-45° (no globe translation on clamp), unlimited zoom, `constrainedAxis = UNIT_Z`
+  - Click-to-pick: `globe.pick(ray)` → lat/lng → `latLngToCell(lat, lng, 6)` → hex highlight + console log
+  - Grid cell count guarded: spherical cap estimate, never compute >3,000 cells
 
-## Technical Decisions (All Now Validated)
-
-| Decision | Resolution | Change from Original |
-|----------|-----------|---------------------|
-| H3 vs ISEGrid vs custom | **H3 selected** | ISEGrid deferred (not publicly accessible FOSS) |
-| H3 resolution level (Five Towns) | **Res 8 primary** | Confirmed based on constituency analysis requirements |
-| Static bundling vs on-demand | **Static bundles** | No change, confirmed for homelab deployment |
-| Database vs file-based | **File-based (GeoJSON)** | No database needed for project scope |
-| Coordinate system | **WGS84 primary, BNG for UK calculations** | No change |
-
----
-
-## Data Scale Summary
-
-| Scope | Resolution | Cell Count | Storage (compressed) |
-|-------|-----------|------------|----------------------|
-| Five Towns | 8 | ~500 cells | < 5 MB |
-| Five Towns | 7 | ~400 cells | < 3 MB |
-| UK overview | 6 | ~80,000 cells | ~10 MB grid |
-| UK regional | 7 | ~700,000 cells | ~80 MB grid |
-| World view | 5 | ~2.16M cells | ~150 MB grid |
+### Phase 5 — Tectonic Back-Propagation Mesh ✅
+- `scripts/build-tectonic-mesh.ts` — enumerates H3 res-6 cells over UK bbox, extracts unique vertices (~99,788)
+- Plate assignment via majority vote from 3 surrounding cells (GPlates MULLER2022)
+- Batched GPlates POST API (200 points/batch), per-step checkpoints in `.cache/tectonic-checkpoints/`
+- **Output: `public/tectonic-mesh.json` (36 MB)**
+  - 99,788 unique hex vertices with paleo lat/lng at 9 time steps
+  - Time steps (Ma): 0, 20, 50, 90, 130, 170, 200, 250, 335
+  - null positions = point had no reconstruction (ocean/subducted)
+- Cesium UI loads this on startup; scrubbing the era/time slider deforms hex wireframe
+  - `getCellPositionsAtTime(cellId, timeMa)` — linear interpolation between bracketing steps
+  - Fallback: static modern H3 boundary if mesh not loaded or cell not covered
 
 ---
 
-## Phase 0 Research Documents
+## Next Steps (Phase 6 — Human-in-loop Validation)
 
-All located in `research/` directory:
+These require human decisions and UI interaction. They cannot be fully automated:
 
-| Document | Purpose |
-|----------|---------|
-| `research/01-geological-sources.md` | Geological source audit with scoring |
-| `research/02-historical-sources.md` | Historical source audit + temporal coverage matrix |
-| `research/03-political-sources.md` | Political source audit + free/paid matrix |
-| `research/04-hex-system-analysis.md` | H3 vs ISEGrid decision + resolution analysis |
-| `research/05-tools-and-human-actions.md` | Tool list, human actions, decision gates |
-| `research/06-data-scale-estimate.md` | Volume estimates for all layers/scales |
-| `research/07-development-roadmap.md` | Full phased roadmap with validated decisions |
-
-See also: `CONTRIBUTING.md` for tooling setup and human action checklists.
+| Task | What's needed | How |
+|------|--------------|-----|
+| **QGIS visual validation** | Open layers, verify alignment | QGIS: Layer > Add from Layer Definition File → `export/place-time-five-towns.qlr`; start MCP plugin first |
+| **Cesium UI review** | Run `npm run dev`, open http://localhost:5173, check era buttons, time slider, tectonic deformation | Manual |
+| **Tectonic deformation check** | Drag era slider from "Today" → "Pangea" and verify hexes deform toward correct plate positions | Manual in browser |
+| **Gerrymandering compactness** | Polsby-Popper on `constituencies-five-towns.geojson` — needs decision on methodology | Code task (ready to implement) |
+| **Cliopatria temporal filter** | Verify polities appear/disappear correctly at right years in the CLI and UI | Manual + code |
+| **Westminster constituency labels** | The 2 constituencies show geographically — do they label correctly? | Manual in QGIS/UI |
 
 ---
 
-## Key Links
+## Phase 7 — Embedding Pipeline
 
-- **Phase 0 research:** `research/` directory
-- **Contributing guide:** `CONTRIBUTING.md`
-- **Development plan:** `DEVELOPMENT-PLAN.md`
-- **GPlates 2.5 GeoData:** https://zenodo.org/records/14194897
-- **fraenx/tectonicplates:** https://github.com/fraxen/tectonicplates
-- **BGS OGC API:** https://ogcapi.bgs.ac.uk/
-- **OpenDomesday API:** https://opendomesday.org/api/
-- **Cliopatria:** https://github.com/Seshat-Global-History-Databank/cliopatria
-- **H3 (Uber):** https://github.com/uber/h3
+`EmbeddingSearchPipeline.searchSource()` in `src/core/hexalog.ts` is a scaffold stub. To make it real:
+- Build a vector index from GeoJSON bundles (Ollama + cosine similarity is already wired in `src/core/embeddings.ts`)
+- Index needs: feature name, temporal range, cell IDs, description text
+- Query at `(lat, lng, year)` → top-k matching features
 
 ---
 
-*For the full phased roadmap with timeline estimates and decision gate criteria, see `research/07-development-roadmap.md`*
+## Phase 8 — Global Extension (Optional)
+
+Currently the tectonic mesh covers the UK bbox only. For a full globe:
+- Run `npm run build:tectonic -- --area=global` (long job, ~12–24h for all H3 res-6 cells globally)
+- ~500K cells globally at res 6 → mesh would be ~350MB
+
+---
+
+## Key Commands
+
+```bash
+npm run dev                                          # Cesium UI at localhost:5173
+npx tsx src/cli/query.ts --place pontefract --year 1086  # CLI query
+npm run build:tectonic                              # rebuild tectonic mesh (UK bbox)
+npm run ingest:all                                  # re-fetch all data layers
+npm run build:qgis                                  # regenerate QGIS .qlr file
+```
+
+---
+
+## Architecture Summary
+
+```
+Place-Time Resolution (PTR) Scale
+  PTR-0   H3 res 0   ~1,377km   planetary / tectonic plate
+  PTR-3   H3 res 3   ~73km      ancient empire / large region
+  PTR-5   H3 res 5   ~10km      hundred / wapentake
+  PTR-6   H3 res 6   ~3.9km     ← CURRENT UI RESOLUTION (all eras)
+  PTR-8   H3 res 8   ~554m      neighbourhood / hamlet
+  PTR-10  H3 res 9   ~2.1km     ← LEAF NODE (human knowability / Dunbar scale)
+
+Tectonic deformation: GPlates MULLER2022 at 9 steps (0→335 Ma)
+  Vertex-based: shared vertices between cells move together (topologically connected)
+  Interpolated at runtime in getCellPositionsAtTime()
+
+Physical column bounds (hexalog.ts):
+  COLUMN_TOP_M    =  10,000m  (above Everest)
+  COLUMN_BOTTOM_M = -12,000m  (below Challenger Deep)
+  COLUMN_SPAN_M   =  22,000m
+```
+
+---
+
+## Data Files
+
+| File | Size | Description |
+|------|------|-------------|
+| `public/tectonic-mesh.json` | 36 MB | Vertex tectonic displacement table (9 time steps) |
+| `data/historical/cliopatria-uk.geojson` | ~15 MB | 799 temporal polities |
+| `data/historical/yorkshire-settlements-osm.geojson` | ~2 MB | 420 OSM settlements |
+| `data/boundaries/constituencies-five-towns.geojson` | <1 MB | 2 Westminster constituencies |
+| `data/geology/tectonic_plates.geojson` | ~5 MB | 54 tectonic plates |
+| `data/geology/geological_provinces.geojson` | ~3 MB | 49 BGS bedrock provinces |
+
+---
+
+## Known Issues / Decisions Pending
+
+1. **OpenDomesday API offline** — Palmer/Hull records used instead. Full Yorkshire dataset may exist at https://hydra.hull.ac.uk/resources/hull:domesdayDisplaySet
+2. **Cliopatria license CC-BY-NC** — non-commercial use only. Commercial applications need alternative.
+3. **Big Bang button** — brief says a 3D nebula/white-hole blob should replace the globe at the Big Bang era; not implemented.
+4. **Skybox** — Cesium default skybox should be black during pre-Earth eras; not implemented.
+5. **Globe shapefiles per era** — continental reconstruction shapefiles for each era button not yet sourced/integrated.

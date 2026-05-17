@@ -11,21 +11,21 @@ import { latLngToCell } from 'h3-js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '../../');
-const DATA = join(ROOT, 'data');
 
 // Well-known Five Towns points for --place shorthand
 const KNOWN_PLACES: Record<string, [number, number]> = {
-  pontefract:    [53.6934, -1.3093],
-  castleford:    [53.7243, -1.3545],
-  featherstone:  [53.6778, -1.3680],
-  knottingley:   [53.7109, -1.2437],
-  normanton:     [53.6987, -1.4194],
-  wakefield:     [53.6832, -1.4976],
+  pontefract:   [53.6934, -1.3093],
+  castleford:   [53.7243, -1.3545],
+  featherstone: [53.6778, -1.3680],
+  knottingley:  [53.7109, -1.2437],
+  normanton:    [53.6987, -1.4194],
+  wakefield:    [53.6832, -1.4976],
 };
 
 // ---------------------------------------------------------------------------
-// Point-in-polygon (ray casting)
+// Geometry helpers
 // ---------------------------------------------------------------------------
+
 function pointInRing(px: number, py: number, ring: number[][]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -49,8 +49,64 @@ function pointInGeometry(lng: number, lat: number, geometry: GeoJSON.Geometry): 
   return false;
 }
 
+/** Signed area of a ring in degree-units (shoelace, no projection) */
+function signedAreaDeg(ring: number[][]): number {
+  let a = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    a += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return a / 2;
+}
+
+/**
+ * Polsby-Popper compactness score for a constituency feature.
+ * Formula: 4π × area / perimeter²
+ * Uses geodesic approximation: converts degrees to metres using midpoint latitude.
+ * Returns { pp, areaKm2, perimKm }.
+ */
+function constituencyCompactness(
+  f: GeoJSON.Feature
+): { pp: number; areaKm2: number; perimKm: number } {
+  let ring: number[][];
+  if (f.geometry?.type === 'Polygon') {
+    ring = f.geometry.coordinates[0] as unknown as number[][];
+  } else if (f.geometry?.type === 'MultiPolygon') {
+    let maxArea = -Infinity;
+    let biggestPoly: number[][] | undefined;
+    for (const poly of f.geometry.coordinates as unknown as number[][][]) {
+      const a = Math.abs(signedAreaDeg(poly));
+      if (a > maxArea) { maxArea = a; biggestPoly = poly; }
+    }
+    if (!biggestPoly) return { pp: 0, areaKm2: 0, perimKm: 0 };
+    ring = biggestPoly;
+  } else {
+    return { pp: 0, areaKm2: 0, perimKm: 0 };
+  }
+
+  const latMid = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * Math.cos(latMid * Math.PI / 180);
+
+  let areaM = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    areaM += (ring[j][0] * mPerDegLng) * (ring[i][1] * mPerDegLat)
+           - (ring[i][0] * mPerDegLng) * (ring[j][1] * mPerDegLat);
+  }
+  areaM = Math.abs(areaM / 2);
+
+  let perimM = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const dx = (ring[i][0] - ring[j][0]) * mPerDegLng;
+    const dy = (ring[i][1] - ring[j][1]) * mPerDegLat;
+    perimM += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const pp = perimM > 0 ? (4 * Math.PI * areaM) / (perimM * perimM) : 0;
+  return { pp, areaKm2: areaM / 1e6, perimKm: perimM / 1000 };
+}
+
 // ---------------------------------------------------------------------------
-// Data loaders
+// Data loader
 // ---------------------------------------------------------------------------
 
 function loadGeoJson(relPath: string): GeoJSON.FeatureCollection | null {
@@ -68,12 +124,12 @@ function queryPoint(lat: number, lng: number, year: number) {
   const res7 = latLngToCell(lat, lng, 7);
 
   console.log(`\n=== Place-Time Query ===`);
-  console.log(`Point:     ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°W`);
-  console.log(`Year:      ${year > 0 ? year + ' CE' : Math.abs(year) + ' BCE'}`);
-  console.log(`H3 res 8:  ${res8}`);
-  console.log(`H3 res 7:  ${res7}`);
+  console.log(`Point:    ${lat.toFixed(5)}N, ${Math.abs(lng).toFixed(5)}W`);
+  console.log(`Year:     ${year > 0 ? year + ' CE' : Math.abs(year) + ' BCE'}`);
+  console.log(`H3 res 8: ${res8}`);
+  console.log(`H3 res 7: ${res7}`);
 
-  // 1. Domesday settlements (if year ~1086)
+  // 1. Domesday settlements (~1086)
   const domesday = loadGeoJson('data/historical/domesday-five-towns.geojson');
   if (domesday && Math.abs(year - 1086) < 50) {
     console.log(`\n--- Domesday Settlements (1086) ---`);
@@ -84,7 +140,7 @@ function queryPoint(lat: number, lng: number, year: number) {
         const dist = Math.sqrt((fLat - lat) ** 2 + (fLng - lng) ** 2);
         return { name: f.properties?.domesdayName, modern: f.properties?.modernName, hundred: f.properties?.hundred, dist };
       })
-      .filter(p => p.dist < 0.2) // ~22km radius
+      .filter(p => p.dist < 0.2)
       .sort((a, b) => a.dist - b.dist)
       .slice(0, 5);
 
@@ -92,44 +148,43 @@ function queryPoint(lat: number, lng: number, year: number) {
       console.log('  No Domesday settlements found within ~22km');
     } else {
       for (const p of nearby) {
-        console.log(`  ${p.name} (modern: ${p.modern}) — ${p.hundred} hundred`);
+        console.log(`  ${p.name} (modern: ${p.modern}) -- ${p.hundred} hundred`);
       }
     }
   }
 
-  // 2. Active Cliopatria polities at this year that contain this point
+  // 2. Cliopatria polities active at this year covering this point
   const cliopatria = loadGeoJson('data/historical/cliopatria-uk.geojson');
   if (cliopatria) {
     const active = cliopatria.features.filter(f => {
       if (!f.geometry) return false;
       const from = f.properties?.FromYear ?? f.properties?.validFrom;
-      const to = f.properties?.ToYear ?? f.properties?.validTo;
-      const timeOk = (from === null || from === undefined || from <= year) &&
-                     (to === null || to === undefined || to >= year);
+      const to   = f.properties?.ToYear   ?? f.properties?.validTo;
+      const timeOk = (from == null || from <= year) && (to == null || to >= year);
       if (!timeOk) return false;
       return pointInGeometry(lng, lat, f.geometry as GeoJSON.Geometry);
     });
 
     console.log(`\n--- Cliopatria Polities at ${year} (covering this location) ---`);
     if (active.length === 0) {
-      console.log('  None found — location may not be covered by Cliopatria data at this date');
+      console.log('  None found -- location may not be covered by Cliopatria data at this date');
     } else {
       for (const f of active) {
         const name = f.properties?.Name ?? f.properties?.name ?? '(unnamed)';
         const from = f.properties?.FromYear ?? f.properties?.validFrom ?? '?';
-        const to = f.properties?.ToYear ?? f.properties?.validTo ?? '?';
-        console.log(`  ${name} (${from}–${to})`);
+        const to   = f.properties?.ToYear   ?? f.properties?.validTo   ?? '?';
+        console.log(`  ${name} (${from}--${to})`);
       }
     }
   }
 
-  // 3. Administrative context (always current)
-  const wakefield = loadGeoJson('data/boundaries/wakefield-mdc.geojson');
+  // 3. Modern administrative context
+  const wakefield      = loadGeoJson('data/boundaries/wakefield-mdc.geojson');
   const constituencies = loadGeoJson('data/boundaries/constituencies-five-towns.geojson');
-  const wards = loadGeoJson('data/boundaries/wards-wakefield.geojson');
+  const wards          = loadGeoJson('data/boundaries/wards-wakefield.geojson');
 
   console.log(`\n--- Modern Administrative Context ---`);
-  console.log(`  District: Wakefield MDC (${wakefield?.features.length ? '✓' : '?'})`);
+  console.log(`  District: Wakefield MDC (${wakefield?.features.length ? 'OK' : '?'})`);
 
   if (constituencies) {
     const pcon = constituencies.features.find(f =>
@@ -137,6 +192,13 @@ function queryPoint(lat: number, lng: number, year: number) {
     );
     const pconName = pcon?.properties?.PCON22NM ?? pcon?.properties?.PCON23NM ?? null;
     console.log(`  Constituency: ${pconName ?? 'Not within loaded constituencies'}`);
+
+    if (pcon) {
+      const { pp, areaKm2, perimKm } = constituencyCompactness(pcon);
+      const rating = pp < 0.2 ? 'WARN highly fragmented' : pp < 0.4 ? '~ moderately fragmented' : 'OK reasonably compact';
+      console.log(`  Polsby-Popper: ${pp.toFixed(4)}  (${rating})`);
+      console.log(`  Area: ${areaKm2.toFixed(2)} km2  |  Perimeter: ${perimKm.toFixed(2)} km`);
+    }
   }
 
   if (wards) {
@@ -147,20 +209,19 @@ function queryPoint(lat: number, lng: number, year: number) {
     console.log(`  Ward: ${wardName ?? 'Not within loaded wards'}`);
   }
 
-  // 4. Geological layer
+  // 4. Geological context
   const geology = loadGeoJson('data/geology/geological_provinces.geojson');
   if (geology) {
     console.log(`\n--- Geological Context (${geology.features.length} BGS features in area) ---`);
-    // Deduplicate by name
     const seen = new Set<string>();
     for (const f of geology.features) {
       const name = f.properties?.name ?? f.properties?.PROV ?? '(unnamed)';
-      const lex = f.properties?.lex ?? '';
+      const lex  = f.properties?.lex ?? '';
       const rock = f.properties?.rockDescription ?? f.properties?.age ?? '';
-      const key = `${lex}|${name}`;
+      const key  = `${lex}|${name}`;
       if (!seen.has(key)) {
         seen.add(key);
-        console.log(`  ${name}${rock ? ' — ' + rock : ''}`);
+        console.log(`  ${name}${rock ? ' -- ' + rock : ''}`);
         if (seen.size >= 5) break;
       }
     }
@@ -209,9 +270,9 @@ function getArg(name: string): string | null {
 }
 
 const placeArg = getArg('--place');
-const latArg = getArg('--lat');
-const lngArg = getArg('--lng');
-const yearArg = getArg('--year');
+const latArg   = getArg('--lat');
+const lngArg   = getArg('--lng');
+const yearArg  = getArg('--year');
 
 let lat: number, lng: number;
 

@@ -341,8 +341,51 @@ function pointInGeometry(lng: number, lat: number, geometry: GeoJSON.Geometry): 
   return false;
 }
 
+function signedAreaDeg(ring: number[][]): number {
+  let a = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    a += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return a / 2;
+}
+
+function constituencyCompactness(f: GeoJSON.Feature): { pp: number; areaKm2: number; perimKm: number } {
+  let ring: number[][];
+  if (f.geometry?.type === 'Polygon') {
+    ring = f.geometry.coordinates[0] as unknown as number[][];
+  } else if (f.geometry?.type === 'MultiPolygon') {
+    let maxArea = -Infinity;
+    let biggestPoly: number[][] | undefined;
+    for (const poly of f.geometry.coordinates as unknown as number[][][]) {
+      const a = Math.abs(signedAreaDeg(poly));
+      if (a > maxArea) { maxArea = a; biggestPoly = poly; }
+    }
+    if (!biggestPoly) return { pp: 0, areaKm2: 0, perimKm: 0 };
+    ring = biggestPoly;
+  } else {
+    return { pp: 0, areaKm2: 0, perimKm: 0 };
+  }
+  const latMid = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * Math.cos(latMid * Math.PI / 180);
+  let areaM = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    areaM += (ring[j][0] * mPerDegLng) * (ring[i][1] * mPerDegLat)
+           - (ring[i][0] * mPerDegLng) * (ring[j][1] * mPerDegLat);
+  }
+  areaM = Math.abs(areaM / 2);
+  let perimM = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const dx = (ring[i][0] - ring[j][0]) * mPerDegLng;
+    const dy = (ring[i][1] - ring[j][1]) * mPerDegLat;
+    perimM += Math.sqrt(dx * dx + dy * dy);
+  }
+  const pp = perimM > 0 ? (4 * Math.PI * areaM) / (perimM * perimM) : 0;
+  return { pp, areaKm2: areaM / 1e6, perimKm: perimM / 1000 };
+}
+
 // ---------------------------------------------------------------------------
-// Info panel — async so it can fetch Cliopatria
+// Info panel — async so it can fetch Cliopatria + constituencies
 // ---------------------------------------------------------------------------
 let infoPanel: HTMLDivElement | null = null;
 
@@ -368,6 +411,21 @@ async function showInfoPanel(cellId: string): Promise<void> {
   const geoEpoch = geologicalEpochAtPosition(timePos);
   const polEpoch = politicalEpochAtPosition(timePos);
 
+  // Async load constituencies for compactness
+  const constituencies = await loadGeoJsonCached('data/boundaries/constituencies-five-towns.geojson');
+  let ppLine = '';
+  if (constituencies) {
+    const pcon = constituencies.features.find(f =>
+      f.geometry && pointInGeometry(cellLng, cellLat, f.geometry as GeoJSON.Geometry)
+    );
+    if (pcon) {
+      const { pp } = constituencyCompactness(pcon);
+      const pconName = pcon.properties?.PCON22NM ?? pcon.properties?.PCON23NM ?? '';
+      const rating = pp < 0.2 ? 'fragmented' : pp < 0.4 ? 'moderate' : 'compact';
+      ppLine = `<div style="margin-top:0.3rem"><span style="color:#555">Constituency</span><br>${pconName}<br><span style="color:#555">PP compactness</span> ${pp.toFixed(4)} <span style="color:#444">(${rating})</span></div>`;
+    }
+  }
+
   const geoLine = geoEpoch
     ? `<div style="margin-top:0.3rem"><span style="color:#555">Geo epoch</span><br>${geoEpoch.name}${geoEpoch.description ? ' — ' + geoEpoch.description : ''}</div>`
     : '';
@@ -387,17 +445,18 @@ async function showInfoPanel(cellId: string): Promise<void> {
   infoPanel.innerHTML = `
     <div style="overflow:hidden">
       <strong style="color:#e94560;font-size:0.8rem">Cell Info</strong>
-      <button id="cell-info-close" style="float:right;background:none;border:none;color:#888;font-size:1rem;cursor:pointer;padding:0;line-height:1;">×</button>
+      <button id="cell-info-close" style="float:right;background:none;border:none;color:#888;font-size:1rem;cursor:pointer;padding:0;line-height:1;">x</button>
     </div>
     <hr style="border:none;border-top:1px solid #2a2a3e;margin:0.5rem 0">
     <div><span style="color:#555">H3 ID</span><br><span style="word-break:break-all;font-size:0.65rem">${cellId}</span></div>
-    <div style="margin-top:0.3rem"><span style="color:#555">Centroid</span><br>${cellLat.toFixed(4)}°N, ${Math.abs(cellLng).toFixed(4)}°${cellLng < 0 ? 'W' : 'E'}</div>
+    <div style="margin-top:0.3rem"><span style="color:#555">Centroid</span><br>${cellLat.toFixed(4)}N, ${Math.abs(cellLng).toFixed(4)}W</div>
     <div style="margin-top:0.3rem"><span style="color:#555">Era</span><br>${formatYear(currentYear)}</div>
     <div style="margin-top:0.3rem"><span style="color:#555">Plate</span><br>${plateName}</div>
     ${geoLine}
     ${polLine}
-    <div style="margin-top:0.3rem"><span style="color:#555">H3 res ${res}</span><br><span style="color:#555">~${areaKm2} km² per cell</span></div>
-    <div id="cell-info-polities" style="margin-top:0.5rem"><span style="color:#555">Cliopatria polities</span><br><em style="color:#444">loading…</em></div>
+    ${ppLine}
+    <div style="margin-top:0.3rem"><span style="color:#555">H3 res ${res}</span><br><span style="color:#555">~${areaKm2} km2 per cell</span></div>
+    <div id="cell-info-polities" style="margin-top:0.5rem"><span style="color:#555">Cliopatria polities</span><br><em style="color:#444">loading...</em></div>
   `;
   document.getElementById('cell-info-close')?.addEventListener('click', () => { infoPanel?.remove(); infoPanel = null; });
   document.body.appendChild(infoPanel);
@@ -420,12 +479,12 @@ async function showInfoPanel(cellId: string): Promise<void> {
     if ((from != null && from > currentYear) || (to != null && to < currentYear)) continue;
     if (pointInGeometry(cellLng, cellLat, f.geometry as GeoJSON.Geometry)) {
       const name = f.properties?.Name ?? f.properties?.name ?? '(unnamed)';
-      activePolities.push(`${name} (${from ?? '?'}–${to ?? '?'})`);
+      activePolities.push(`${name} (${from ?? '?'} - ${to ?? '?'})`);
     }
   }
 
   if (activePolities.length > 0) {
-    polityDiv.innerHTML = `<span style="color:#555">Cliopatria polities</span><br>${activePolities.map(p => '• ' + p).join('<br>')}`;
+    polityDiv.innerHTML = `<span style="color:#555">Cliopatria polities</span><br>${activePolities.map(p => '&bull; ' + p).join('<br>')}`;
   } else if (currentYear >= -3400 && currentYear <= 2024) {
     polityDiv.innerHTML = `<span style="color:#555">Cliopatria polities</span><br><em style="color:#444">none at this date</em>`;
   } else {
