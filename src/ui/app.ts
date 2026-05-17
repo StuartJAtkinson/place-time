@@ -95,7 +95,7 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
 viewer.imageryLayers.addImageryProvider(
   new Cesium.UrlTemplateImageryProvider({
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    credit: '© OpenStreetMap contributors',
+    credit: 'Â© OpenStreetMap contributors',
     maximumLevel: 19,
   })
 );
@@ -307,7 +307,7 @@ function deselect(): void {
 }
 
 // ---------------------------------------------------------------------------
-// GeoJSON helpers — browser fetch (async, no Node.js deps)
+// GeoJSON helpers â€” browser fetch (async, no Node.js deps)
 // ---------------------------------------------------------------------------
 const geoJsonCache = new Map<string, GeoJSON.FeatureCollection>();
 
@@ -385,7 +385,7 @@ function constituencyCompactness(f: GeoJSON.Feature): { pp: number; areaKm2: num
 }
 
 // ---------------------------------------------------------------------------
-// Info panel — async so it can fetch Cliopatria + constituencies
+// Info panel â€” async so it can fetch Cliopatria + constituencies
 // ---------------------------------------------------------------------------
 let infoPanel: HTMLDivElement | null = null;
 
@@ -427,10 +427,10 @@ async function showInfoPanel(cellId: string): Promise<void> {
   }
 
   const geoLine = geoEpoch
-    ? `<div style="margin-top:0.3rem"><span style="color:#555">Geo epoch</span><br>${geoEpoch.name}${geoEpoch.description ? ' — ' + geoEpoch.description : ''}</div>`
+    ? `<div style="margin-top:0.3rem"><span style="color:#555">Geo epoch</span><br>${geoEpoch.name}${geoEpoch.description ? ' â€” ' + geoEpoch.description : ''}</div>`
     : '';
   const polLine = polEpoch
-    ? `<div style="margin-top:0.3rem"><span style="color:#555">Political epoch</span><br>${polEpoch.name}${polEpoch.description ? ' — ' + polEpoch.description : ''}</div>`
+    ? `<div style="margin-top:0.3rem"><span style="color:#555">Political epoch</span><br>${polEpoch.name}${polEpoch.description ? ' â€” ' + polEpoch.description : ''}</div>`
     : '';
 
   infoPanel = document.createElement('div');
@@ -493,29 +493,6 @@ async function showInfoPanel(cellId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Big Bang blob
-// ---------------------------------------------------------------------------
-let bigBangEntity: Cesium.Entity | null = null;
-
-function showBigBang(): void {
-  if (bigBangEntity) return;
-  bigBangEntity = viewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
-    ellipsoid: {
-      radii: new Cesium.Cartesian3(80_000, 80_000, 80_000),
-      material: new Cesium.ColorMaterialProperty(
-        Cesium.Color.WHITE.withAlpha(0.8)
-      ) as unknown as Cesium.MaterialProperty,
-      outline: false,
-    },
-  });
-}
-
-function hideBigBang(): void {
-  if (bigBangEntity) { viewer.entities.remove(bigBangEntity); bigBangEntity = null; }
-}
-
-// ---------------------------------------------------------------------------
 // Click handler
 // ---------------------------------------------------------------------------
 viewer.screenSpaceEventHandler.setInputAction(
@@ -574,13 +551,7 @@ function setYear(y: number): void {
   if (viewer.scene.globe) viewer.scene.globe.show = !preEarth;
   viewer.scene.backgroundColor = preEarth ? Cesium.Color.BLACK : Cesium.Color.fromCssColorString('#060608');
 
-  if (preEarth) {
-    showBigBang();
-    viewer.scene.globe.translucency.enabled = false;
-  } else {
-    hideBigBang();
-    viewer.scene.globe.translucency.enabled = true;
-  }
+  viewer.scene.globe.translucency.enabled = preEarth;
 
   deselect();
 
