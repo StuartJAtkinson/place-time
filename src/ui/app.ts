@@ -5,6 +5,85 @@ import {
 } from 'h3-js';
 import { COLUMN_TOP_M } from '../core/hexalog.js';
 
+// ---------------------------------------------------------------------------
+// Tectonic mesh — loaded once, used to deform vertices over geological time.
+// If not present, falls back to static H3 cell boundaries.
+// ---------------------------------------------------------------------------
+interface TectonicMesh {
+  timeStepsMa: number[];
+  vertices: Record<string, {
+    lat: number; lng: number; plate: string;
+    positions: Record<number, [number, number] | null>;
+  }>;
+  cells: Record<string, string[]>;  // cellId → vertexId[]
+}
+
+let tectonicMesh: TectonicMesh | null = null;
+
+fetch('/tectonic-mesh.json')
+  .then(r => r.ok ? r.json() : null)
+  .then((data: TectonicMesh | null) => {
+    if (data) {
+      tectonicMesh = data;
+      console.log(`Tectonic mesh loaded: ${Object.keys(data.vertices).length} vertices, ${data.timeStepsMa.length} time steps`);
+    }
+  })
+  .catch(() => { /* not available yet — use static H3 */ });
+
+/**
+ * Get the 6 vertex positions for a cell at a given geological time (Ma).
+ * If the tectonic mesh is loaded and has data for this cell, interpolates
+ * between the nearest time steps. Otherwise falls back to modern H3 boundary.
+ * Returns null if the cell didn't exist at this time (was ocean/subducted).
+ */
+function getCellPositionsAtTime(cellId: string, timeMa: number): Cesium.Cartesian3[] | null {
+  if (!tectonicMesh || !tectonicMesh.cells[cellId]) {
+    // Fallback: modern H3 boundary (no deformation)
+    const boundary = cellToBoundary(cellId);
+    return boundary.map(([lat, lng]) => Cesium.Cartesian3.fromDegrees(lng, lat, WIRE_HEIGHT));
+  }
+
+  const vertexIds = tectonicMesh.cells[cellId];
+  const steps = tectonicMesh.timeStepsMa;
+
+  // Find bracketing time steps for interpolation
+  const hi = steps.findIndex(t => t >= timeMa);
+  const lo = hi <= 0 ? 0 : hi - 1;
+  const t0 = steps[lo], t1 = steps[hi < 0 ? steps.length - 1 : hi];
+  const alpha = t0 === t1 ? 0 : (timeMa - t0) / (t1 - t0);
+
+  const positions: Cesium.Cartesian3[] = [];
+
+  for (const vid of vertexIds) {
+    const v = tectonicMesh.vertices[vid];
+    if (!v) return null;
+
+    const p0 = v.positions[t0];
+    const p1 = v.positions[t1];
+
+    if (p0 === null && p1 === null) return null;  // cell is a gap at this time
+
+    // Use whichever is available, or interpolate
+    const pos0 = p0 ?? p1!;
+    const pos1 = p1 ?? p0!;
+
+    const lat = pos0[0] + (pos1[0] - pos0[0]) * alpha;
+    const lng = pos0[1] + (pos1[1] - pos0[1]) * alpha;
+
+    positions.push(Cesium.Cartesian3.fromDegrees(lng, lat, WIRE_HEIGHT));
+  }
+
+  positions.push(positions[0]); // close the ring
+  return positions;
+}
+
+/** Convert current geological year to millions of years ago */
+function yearToMa(year: number): number {
+  if (year >= 0) return 0;                       // CE dates → present (0 Ma)
+  if (year >= -1_000_000) return -year / 1e6;   // ka/Ma scale
+  return -year / 1e6;
+}
+
 Cesium.Ion.defaultAccessToken = '';
 
 // ---------------------------------------------------------------------------
@@ -134,6 +213,7 @@ class DynamicHexGrid {
     for (const id of visible) {
       if (!this.displayed.has(id)) {
         const positions = this.cellPositions(id);
+        if (!positions) continue;  // gap — didn't exist at this time
         const line = this.lines.add({
           positions,
           material: Cesium.Material.fromType('Color', { color: WIRE_COLOR }),
@@ -147,12 +227,20 @@ class DynamicHexGrid {
     this.currentRes = resolution;
   }
 
-  private cellPositions(id: string): Cesium.Cartesian3[] {
+  private cellPositions(id: string): Cesium.Cartesian3[] | null {
+    const timeMa = yearToMa(currentYear);
+
+    if (timeMa > 0 && tectonicMesh) {
+      // Geological time — use deformed vertex positions
+      return getCellPositionsAtTime(id, timeMa);
+    }
+
+    // Modern time (0 CE or later) — use static H3 boundary
     const boundary = cellToBoundary(id);  // [lat, lng][]
     const pts = boundary.map(([lat, lng]) =>
       Cesium.Cartesian3.fromDegrees(lng, lat, WIRE_HEIGHT)
     );
-    pts.push(pts[0]);  // close the ring
+    pts.push(pts[0]);
     return pts;
   }
 
@@ -343,11 +431,11 @@ function setYear(y: number): void {
 
   deselect();
 
-  // Force immediate grid recompute for the new era
+  // Force full redraw — vertex positions change with geological time
+  hexGrid.clear();
   if (updateTimer) { clearTimeout(updateTimer); updateTimer = null; }
   const res = resolutionForYear(y);
-  if (res === null) hexGrid.clear();
-  else hexGrid.update(res);
+  if (res !== null) hexGrid.update(res);
 
   document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.year ?? '999') === y);
