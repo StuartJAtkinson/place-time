@@ -85,6 +85,28 @@ const WIRE_COLOR = Cesium.Color.WHITE.withAlpha(0.45);
 const WIRE_WIDTH = 1.6;
 const WIRE_HEIGHT = 100;  // metres above ellipsoid — avoids z-fighting with terrain
 
+// Maximum cells to render at once — above this the diff/draw cost is too high
+const MAX_CELLS = 3_000;
+
+// H3 average cell area (km²) — used to estimate visible count from altitude
+// without calling polygonToCells first
+const H3_CELL_AREA_KM2: Partial<Record<number, number>> = {
+  0: 4_310_000, 1: 609_882, 2: 86_745, 3: 12_392,
+  4: 1_770, 5: 253, 6: 36, 7: 5.16, 8: 0.74,
+};
+
+/**
+ * Estimate how many H3 cells would be visible from a given altitude.
+ * Uses the spherical cap formula: visible area = 2πR²h/(R+h)
+ */
+function estimateCellCount(resolution: number, altitudeM: number): number {
+  const R  = 6_371;                               // km
+  const h  = altitudeM / 1_000;                   // km
+  const visibleKm2 = 2 * Math.PI * R * R * h / (R + h);
+  const cellKm2    = H3_CELL_AREA_KM2[resolution] ?? 36;
+  return visibleKm2 / cellKm2;
+}
+
 class DynamicHexGrid {
   private readonly scene: Cesium.Scene;
   private readonly lines: Cesium.PolylineCollection;
@@ -141,6 +163,13 @@ class DynamicHexGrid {
   }
 
   private computeVisible(resolution: number): string[] {
+    const alt = this.scene.camera.positionCartographic.height;
+
+    // Guard: estimate visible cell count — if it would exceed the limit,
+    // bail out immediately without calling polygonToCells at all.
+    // The user zooms in until the grid appears.
+    if (estimateCellCount(resolution, alt) > MAX_CELLS) return [];
+
     // Low resolutions: always show all cells (tiny count, instant)
     if (resolution <= 2) {
       const res0 = getRes0Cells();
@@ -149,12 +178,11 @@ class DynamicHexGrid {
         : res0.flatMap(r0 => cellToChildren(r0, resolution));
     }
 
-    // Higher resolutions: compute only cells in the current viewport
+    // Higher resolutions: compute only viewport-visible cells
     const polygon = this.viewportPolygon();
 
-    // Camera in space — viewport doesn't intersect globe at all corners
+    // Camera in space — frustum doesn't intersect globe at all corners
     if (polygon.length < 4) {
-      // Fall back: show all cells at this res if manageable, else nothing
       if (resolution <= 3) {
         const res0 = getRes0Cells();
         return res0.flatMap(r0 => cellToChildren(r0, resolution));
