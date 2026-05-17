@@ -8,25 +8,15 @@ import { COLUMN_TOP_M } from '../core/hexalog.js';
 Cesium.Ion.defaultAccessToken = '';
 
 // ---------------------------------------------------------------------------
-// Era → H3 resolution mapping
-// One grid, one resolution, computed from camera frustum — no static files.
-// Resolution increases logarithmically toward the present.
+// Single resolution — H3 res 6 (~3.9km edge) for all time
+// This is the Place-Time leaf node (PTR-10). The grid is fixed in modern
+// WGS84 coordinates and will be back-propagated through tectonic plate
+// velocity data to reconstruct its position at any geological epoch.
 // ---------------------------------------------------------------------------
-const ERA_RESOLUTIONS = [
-  { minYear: -4_540_000_000, maxYear: -540_000_000, res: 1 },  // Earth → Cambrian
-  { minYear:   -540_000_000, maxYear:  -66_000_000, res: 2 },  // Cambrian → K-Pg
-  { minYear:    -66_000_000, maxYear:   -10_000,    res: 3 },  // K-Pg → Ice Age end
-  { minYear:       -10_000,  maxYear:    -3_000,    res: 4 },  // Ice Age → Cities
-  { minYear:        -3_000,  maxYear:     0,         res: 5 },  // Cities → 0 CE
-  { minYear:             0,  maxYear: Infinity,      res: 6 },  // 0 CE → present
-] as const;
+const GRID_RESOLUTION = 6;
 
 function resolutionForYear(year: number): number | null {
-  if (year < -4_540_000_000) return null;  // pre-Earth
-  for (const e of ERA_RESOLUTIONS) {
-    if (year >= e.minYear && year < e.maxYear) return e.res;
-  }
-  return 6;  // present
+  return year < -4_540_000_000 ? null : GRID_RESOLUTION;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,9 +49,13 @@ viewer.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance = 1e9;
 viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
 
-viewer.scene.preRender.addEventListener(() => {
+// Pitch clamp: postRender fires AFTER the camera controller finishes its
+// update for the frame, so there's no fight. Anchoring destination to the
+// current position means only orientation changes — no globe translation.
+viewer.scene.postRender.addEventListener(() => {
   if (viewer.camera.pitch > -Math.PI / 4) {
     viewer.camera.setView({
+      destination: viewer.camera.position.clone(),
       orientation: { heading: viewer.camera.heading, pitch: -Math.PI / 4, roll: 0 },
     });
   }

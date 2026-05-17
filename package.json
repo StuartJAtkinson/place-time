@@ -15,6 +15,7 @@
     "build:timescale": "tsx scripts/build-timescale.ts",
     "optimise:grid": "tsx scripts/optimise-grid-alignment.ts",
     "generate:h3": "tsx scripts/generate-h3-global-grids.ts",
+    "analyse:tectonic": "tsx scripts/tectonic-cell-analysis.ts",
     "query": "tsx src/cli/query.ts",
     "ollama:check": "curl -s http://localhost:11434/api/tags | jq ."
   },
