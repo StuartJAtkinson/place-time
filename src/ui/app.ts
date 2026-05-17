@@ -4,6 +4,13 @@ import { COLUMN_TOP_M } from '../core/hexalog.js';
 Cesium.Ion.defaultAccessToken = '';
 
 // ---------------------------------------------------------------------------
+// Resolution thresholds — which grid to show based on time, not zoom
+// PTR-10 (res8, fine 0.554km) for human-scale time (Holocene onwards)
+// PTR-7  (res7, coarse 1.47km) for geological deep time
+// ---------------------------------------------------------------------------
+const HUMAN_ERA_THRESHOLD = -10_000;   // 10,000 BCE — end of last Ice Age
+
+// ---------------------------------------------------------------------------
 // Viewer
 // ---------------------------------------------------------------------------
 const viewer = new Cesium.Viewer('cesiumContainer', {
@@ -23,9 +30,12 @@ viewer.imageryLayers.addImageryProvider(
   })
 );
 
+// Globe fully opaque by default — translucency only enabled when a cell is
+// selected so the prism appears to continue below the surface
 viewer.scene.globe.translucency.enabled = true;
-viewer.scene.globe.translucency.frontFaceAlpha = 0.85;
-viewer.scene.globe.translucency.backFaceAlpha  = 0.5;
+viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
+viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
+
 viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#060608');
 
 viewer.camera.setView({
@@ -34,70 +44,95 @@ viewer.camera.setView({
 });
 
 // ---------------------------------------------------------------------------
-// Grid config — zoom-dependent switching (only one visible at a time)
+// Grid definitions
 // ---------------------------------------------------------------------------
-const GRIDS = [
-  {
+const GRIDS = {
+  res7: {
     id: 'res7', path: '/five-towns-grid-res7.geojson',
-    wireColor: Cesium.Color.fromCssColorString('#252525').withAlpha(0.85),
+    wireColor: Cesium.Color.fromCssColorString('#2a2a2a').withAlpha(0.9),
     wireWidth: 1.0,
-    showAboveAlt: 30_000,    // show this coarser grid when camera is high
   },
-  {
+  res8: {
     id: 'res8', path: '/five-towns-grid-res8.geojson',
-    wireColor: Cesium.Color.fromCssColorString('#303030').withAlpha(0.75),
+    wireColor: Cesium.Color.fromCssColorString('#303030').withAlpha(0.85),
     wireWidth: 0.6,
-    showAboveAlt: 0,         // show this finer grid when camera is low
-    hideAboveAlt: 60_000,    // hide it when zoomed out too far (too dense)
   },
-] as const;
+} as const;
 
-// One selected prism at a time
+type GridId = keyof typeof GRIDS;
+
+// Pickable-but-invisible fill alpha — enough for Cesium to register interior clicks
+const PICK_ALPHA = 0.01;
+
 let selectedPrism: Cesium.Entity | null = null;
-const entityGridMap = new Map<Cesium.Entity, typeof GRIDS[number]>();
-const gridDataSources = new Map<string, Cesium.GeoJsonDataSource>();
+let activeGridId: GridId = 'res8';
+const gridDataSources = new Map<GridId, Cesium.GeoJsonDataSource>();
+const entityToGrid     = new Map<Cesium.Entity, GridId>();
 
 // ---------------------------------------------------------------------------
-// Load a grid as flat wireframe
+// Load a grid as flat wireframe — interior is nearly transparent but pickable
 // ---------------------------------------------------------------------------
-async function loadGrid(grid: typeof GRIDS[number]): Promise<void> {
-  if (gridDataSources.has(grid.id)) return;
-  const ds = new Cesium.GeoJsonDataSource(grid.id);
-  await ds.load(grid.path);
+async function loadGrid(id: GridId): Promise<void> {
+  if (gridDataSources.has(id)) return;
+  const def = GRIDS[id];
+  const ds  = new Cesium.GeoJsonDataSource(id);
+  await ds.load(def.path);
+
   for (const entity of ds.entities.values) {
     if (!entity.polygon) continue;
+    // Tiny non-zero alpha makes the entire polygon interior pickable
     entity.polygon.material = new Cesium.ColorMaterialProperty(
-      Cesium.Color.TRANSPARENT
+      def.wireColor.withAlpha(PICK_ALPHA)
     ) as unknown as Cesium.MaterialProperty;
     entity.polygon.outline      = new Cesium.ConstantProperty(true);
-    entity.polygon.outlineColor = new Cesium.ConstantProperty(grid.wireColor);
-    entity.polygon.outlineWidth = new Cesium.ConstantProperty(grid.wireWidth);
+    entity.polygon.outlineColor = new Cesium.ConstantProperty(def.wireColor);
+    entity.polygon.outlineWidth = new Cesium.ConstantProperty(def.wireWidth);
     entity.polygon.height       = new Cesium.ConstantProperty(0);
-    entityGridMap.set(entity, grid);
+    entityToGrid.set(entity, id);
   }
-  gridDataSources.set(grid.id, ds);
-  viewer.dataSources.add(ds);
+
+  gridDataSources.set(id, ds);
 }
 
-// Load both; visibility managed by postRender
-GRIDS.forEach(g => loadGrid(g));
+// Preload both grids; visibility toggled by time
+async function preloadGrids(): Promise<void> {
+  await Promise.all([loadGrid('res7'), loadGrid('res8')]);
+  applyGridVisibility();
+}
 
-// Zoom-dependent switching — only one grid visible at a time
-viewer.scene.postRender.addEventListener(() => {
-  const alt = viewer.camera.positionCartographic.height;
+function applyGridVisibility(): void {
   const ds7 = gridDataSources.get('res7');
   const ds8 = gridDataSources.get('res8');
-  if (ds7) ds7.show = alt >= 30_000;
-  if (ds8) ds8.show = alt <  60_000;
-});
+  if (ds7 && !viewer.dataSources.contains(ds7)) viewer.dataSources.add(ds7);
+  if (ds8 && !viewer.dataSources.contains(ds8)) viewer.dataSources.add(ds8);
+
+  const useRes8 = currentYear >= HUMAN_ERA_THRESHOLD;
+  activeGridId  = useRes8 ? 'res8' : 'res7';
+  if (ds7) ds7.show = !useRes8;
+  if (ds8) ds8.show = useRes8;
+}
+
+preloadGrids();
 
 // ---------------------------------------------------------------------------
-// Select cell — show its prism (surface to COLUMN_TOP_M)
+// Select / deselect
 // ---------------------------------------------------------------------------
 function selectCell(entity: Cesium.Entity): void {
-  if (selectedPrism) { viewer.entities.remove(selectedPrism); selectedPrism = null; }
+  if (selectedPrism) {
+    viewer.entities.remove(selectedPrism);
+    selectedPrism = null;
+    // Reset globe opacity
+    viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
+    viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
+  }
+
   const hierarchy = entity.polygon!.hierarchy!.getValue(Cesium.JulianDate.now());
   if (!hierarchy) return;
+
+  // Make globe translucent so the prism appears to pass through
+  viewer.scene.globe.translucency.frontFaceAlpha = 0.55;
+  viewer.scene.globe.translucency.backFaceAlpha  = 0.55;
+
   selectedPrism = viewer.entities.add({
     polygon: {
       hierarchy,
@@ -114,7 +149,12 @@ function selectCell(entity: Cesium.Entity): void {
 }
 
 function deselect(): void {
-  if (selectedPrism) { viewer.entities.remove(selectedPrism); selectedPrism = null; }
+  if (selectedPrism) {
+    viewer.entities.remove(selectedPrism);
+    selectedPrism = null;
+    viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
+    viewer.scene.globe.translucency.backFaceAlpha  = 1.0;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,10 +163,16 @@ function deselect(): void {
 viewer.screenSpaceEventHandler.setInputAction(
   (event: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
     const picked = viewer.scene.pick(event.position);
-    if (!Cesium.defined(picked) || !(picked.id instanceof Cesium.Entity)) { deselect(); return; }
+
+    if (!Cesium.defined(picked) || !(picked.id instanceof Cesium.Entity)) {
+      deselect();
+      return;
+    }
+
     const entity = picked.id as Cesium.Entity;
     if (entity === selectedPrism) { deselect(); return; }
-    if (!entityGridMap.has(entity)) { deselect(); return; }
+    if (!entityToGrid.has(entity)) { deselect(); return; }
+
     selectCell(entity);
   },
   Cesium.ScreenSpaceEventType.LEFT_CLICK
@@ -137,10 +183,13 @@ viewer.screenSpaceEventHandler.setInputAction(
 // ---------------------------------------------------------------------------
 let currentYear = 0;
 
+const BIG_BANG_YEAR = -13_800_000_000;
+const EARTH_FORMED  =  -4_540_000_000;
+
 function formatYear(y: number): string {
-  if (y <= -1_000_000_000) return `${(-y / 1_000_000_000).toFixed(2)} Ga`;
-  if (y <= -1_000_000)     return `${(-y / 1_000_000).toFixed(1)} Ma`;
-  if (y <= -10_000)        return `${(-y / 1_000).toFixed(0)} ka`;
+  if (y <= -1_000_000_000) return `${(-y / 1e9).toFixed(2)} Ga`;
+  if (y <= -1_000_000)     return `${(-y / 1e6).toFixed(1)} Ma`;
+  if (y <= -10_000)        return `${(-y / 1000).toFixed(0)} ka`;
   if (y < 0)               return `${Math.abs(y).toLocaleString()} BCE`;
   if (y === 0)             return '0 CE';
   return `${y} CE`;
@@ -149,10 +198,6 @@ function formatYear(y: number): string {
 const yearDisplay = document.getElementById('year-display') as HTMLSpanElement;
 const ceSlider    = document.getElementById('ce-slider')   as HTMLInputElement;
 const ceInput     = document.getElementById('ce-input')    as HTMLInputElement;
-
-// Big Bang threshold — before Earth formed, no stars, pure void
-const BIG_BANG_YEAR  = -13_800_000_000;
-const EARTH_FORMED   =  -4_540_000_000;
 
 function setYear(y: number): void {
   currentYear = y;
@@ -163,17 +208,21 @@ function setYear(y: number): void {
     ceInput.value  = String(y);
   }
 
-  // Skybox: pure black before Earth formed (no stars yet in early universe context),
-  // otherwise show Cesium's star field
+  // Skybox and globe presence — no stars or Earth before Earth formed
   const preEarth = y < EARTH_FORMED;
-  viewer.scene.skyBox.show = !preEarth;
+  viewer.scene.skyBox.show  = !preEarth;
+  viewer.scene.globe.show   = !preEarth;
   viewer.scene.backgroundColor = preEarth
     ? Cesium.Color.BLACK
     : Cesium.Color.fromCssColorString('#060608');
 
-  // Globe visibility — no globe before Earth formed
-  viewer.scene.globe.show = y > EARTH_FORMED;
+  // Switch grid resolution based on time
+  applyGridVisibility();
 
+  // If a cell was selected, deselect — grid just switched
+  deselect();
+
+  // Update active button highlight
   document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.year ?? '999') === y);
   });
@@ -184,14 +233,14 @@ document.querySelectorAll<HTMLButtonElement>('.era-btn').forEach(btn => {
   btn.addEventListener('click', () => setYear(parseInt(btn.dataset.year!)));
 });
 
-// CE slider (0 → 2024)
+// CE slider
 ceSlider.addEventListener('input', () => {
   const y = parseInt(ceSlider.value);
   ceInput.value = String(y);
   setYear(y);
 });
 
-// Year input (free entry — supports BCE as negative)
+// Year input
 ceInput.addEventListener('change', () => {
   const y = parseInt(ceInput.value);
   if (!isNaN(y)) {
@@ -200,7 +249,7 @@ ceInput.addEventListener('change', () => {
   }
 });
 
-setYear(0); // start at 0 CE
+setYear(0);
 
 // ---------------------------------------------------------------------------
 // Keyboard
