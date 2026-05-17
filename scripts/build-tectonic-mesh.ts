@@ -83,7 +83,7 @@ function pointOnPlate(lng: number, lat: number, feature: GeoJSON.Feature): boole
 // ---------------------------------------------------------------------------
 const GPLATES_URL = 'https://gws.gplates.org/reconstruct/reconstruct_points/';
 const GPLATES_MODEL = 'MULLER2022';
-const BATCH_SIZE = 400;
+const BATCH_SIZE = 200;  // POST body is fine with 200 points
 
 interface GPlatesResult {
   lat: number | null;
@@ -93,31 +93,50 @@ interface GPlatesResult {
 async function reconstructBatch(
   lats: number[], lngs: number[], timeMa: number
 ): Promise<GPlatesResult[]> {
+  // Use POST — GET with 200+ points exceeds URL length limits (HTTP 414)
   const points = lats.map((lat, i) => `${lngs[i]},${lat}`).join(',');
-  const url = `${GPLATES_URL}?points=${encodeURIComponent(points)}&time=${timeMa}&model=${GPLATES_MODEL}&return_null_points=true`;
-
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'place-time/0.1 spatial history project' },
+  const body = new URLSearchParams({
+    points,
+    time: String(timeMa),
+    model: GPLATES_MODEL,
+    return_null_points: 'true',
   });
 
-  if (!res.ok) throw new Error(`GPlates HTTP ${res.status} at time ${timeMa}Ma`);
+  const res = await fetch(GPLATES_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'place-time/0.1 spatial history project',
+    },
+    body: body.toString(),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GPlates HTTP ${res.status} at time ${timeMa}Ma: ${text.slice(0, 200)}`);
+  }
 
   const data = await res.json() as {
     coordinates?: [number, number][];
     features?: Array<{ geometry: { coordinates: [number, number] } | null }>;
   };
 
-  // GWS returns GeoJSON FeatureCollection or coordinates array
-  if (data.coordinates) {
+  // GWS returns either a coordinates array or a GeoJSON FeatureCollection
+  if (Array.isArray(data.coordinates)) {
     return data.coordinates.map(([lng, lat]) => ({ lat, lng }));
   }
-  if (data.features) {
+  if (Array.isArray(data.features)) {
     return data.features.map(f => f.geometry
       ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
       : { lat: null, lng: null }
     );
   }
-  throw new Error(`Unexpected GPlates response format`);
+  // Fallback: try to parse as raw coordinate pairs
+  const raw = data as unknown as [number, number][];
+  if (Array.isArray(raw)) {
+    return raw.map(([lng, lat]) => ({ lat, lng }));
+  }
+  throw new Error(`Unexpected GPlates response: ${JSON.stringify(data).slice(0, 300)}`);
 }
 
 async function reconstructAll(
