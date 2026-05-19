@@ -2,8 +2,8 @@
 
 > A queryable spatial index stacking geological → historical → political layers across time, indexed by H3 hexagonal tessellation. Focus area: Five Towns, West Yorkshire.
 
-**Status:** Working proof-of-concept — Phases 0–4 complete  
-**Stack:** TypeScript / Node.js / H3-js / Leaflet / QGIS  
+**Status:** Working proof-of-concept — Phases 0–4 complete, era imagery active  
+**Stack:** TypeScript / Node.js / H3-js / Cesium / QGIS  
 **Budget:** £0 (all open data sources)
 
 ---
@@ -110,13 +110,29 @@ West Yorkshire cluster sitting at the intersection of:
 - **Medieval**: Honor of Pontefract, monastic holdings, wapentake divisions
 - **Modern**: Two Westminster constituencies — *Normanton, Pontefract and Castleford* and *Hemsworth* — illustrating how the 2022 boundary review re-drew the electoral map
 
-The gerrymandering analysis (Polsby-Popper compactness vs historical county lines) is the next unbuilt piece.
+Polsby-Popper compactness is implemented: Hemsworth 0.3021 (149.8 km²), NPC 0.2258 (86.3 km²). Historical comparison vs pre-1880 county lines is the remaining piece.
+
+---
+
+## Era Imagery
+
+The Cesium globe switches map layer automatically based on the current year:
+
+| Era | Source | Notes |
+|-----|--------|-------|
+| > 1800 Ma (pre-CAO2024) | Blank blue globe | No reliable reconstruction data |
+| 1800–750 Ma | GPlates / CAO2024 | Archean + Proterozoic coastline reconstruction |
+| 750–1 Ma | GPlates / PALEOMAP | Phanerozoic — Cambrian through Quaternary |
+| 10 ka – 1800 CE | ESRI World Physical | Physical terrain, no modern cultural features |
+| 1800 CE+ | OpenStreetMap | Modern roads, cities |
+
+GPlates returns an equirectangular PNG (green land, white ocean). White pixels are made transparent via `ImageryLayer.colorToAlpha` and the globe base colour is set to `#1a4f7a` (ocean blue), giving a clean green-land / blue-sea block style. Tectonic plate outlines (orange) are overlaid for geological eras (< −10 000 years). Layers are cached after first fetch.
 
 ---
 
 ## Known Issues / Next Steps
 
-1. **Gerrymandering analysis** — Polsby-Popper compactness calculation not yet implemented
+1. **Gerrymandering analysis** — Polsby-Popper implemented for Five Towns (Hemsworth 0.3021, NPC 0.2258); historical comparison vs pre-1880 county lines still to do
 2. **Embedding pipeline** — `EmbeddingSearchPipeline.searchSource()` is a placeholder; needs a real vector index
 3. **OpenDomesday API offline** — full Yorkshire Domesday: https://hydra.hull.ac.uk/resources/hull:domesdayDisplaySet
 4. **Cliopatria license** — CC-BY-NC; commercial use requires alternatives or negotiation

@@ -1,87 +1,188 @@
-# Geological Sources Audit
+# Research 01 — Geological Sources Audit
 
-**Date:** 2026-05-15  
+**Date:** 2026-05-18 (updated from 2026-05-15)  
 **Project:** Place-Time Phase 0 Research  
 **Focus:** Five Towns area (Pontefract, Knottingley, Featherstone, Castleford, Normanton) — West Yorkshire
 
 ---
 
-## Sources Evaluated
+## Executive Summary
 
-| Source | Format | Approx Size | License | API Access | Five Towns Quality | Integration Complexity | Recommended |
-|--------|--------|-------------|---------|------------|-------------------|------------------------|-------------|
-| GPlates 2.5 GeoData (Zenodo) | Vector + Raster | ~500 MB | CC-BY | Direct download | Good (tectonic plates) | 3/5 | ✅ Primary |
-| fraxen/tectonicplates (GitHub) | GeoJSON | ~5 MB | ODC-BY | Direct download/clone | Adequate (plate boundaries) | 1/5 | ✅ Secondary |
-| dhasterok/global_tectonics (GitHub) | QML + data | ~50 MB | Custom | Clone + QGIS project | Good (geological provinces) | 4/5 | ⚠️ Deferred |
-| BGS OGC API | OGCAPI/GeoJSON | Variable | OGL | API endpoint | Excellent (1:50k detail) | 2/5 | ✅ UK-specific |
-| USGS | Various | Large | Public Domain | API + download | Adequate | 3/5 | ⚠️ Global backup |
-| Natural Earth | Shapefile/GeoJSON | ~1 GB | Public Domain | Direct download | Coarse (1:10m-1:110m) | 1/5 | Background only |
+All primary geological sources are free and operational. GPlates 2.5 GeoData confirmed available via Zenodo (CC-BY, ~500 MB). BGS OGC API confirmed live with 13 collections including bedrock, superficial, faults, dykes at 1:625k scale. fraxen/tectonicplates is a stable, lightweight alternative (GeoJSON, ODC-BY). No paid sources required for Phase 0–4. Total budget: **£0**.
 
 ---
 
 ## 1. GPlates 2.5 GeoData (Zenodo)
 
 **URL:** https://zenodo.org/records/14194897  
-**Version:** v1.0 (April 2024)  
-**Bundled with:** GPlates 2.5 software
+**Version:** v1.0 (April 15, 2024)  
+**Bundled with:** GPlates 2.5 software (https://gplates.org)
 
 ### Details
-- **Format:** Vector (shapefiles, GeoPackage) + Raster (georeferenced images)
+- **Format:** Vector (Shapefile, GeoPackage) + Raster (georeferenced images)
 - **Content:** Complete paleogeographic reconstructions, tectonic plate boundaries, continental outlines through geological time
 - **License:** Creative Commons Attribution 4.0 (CC-BY)
-- **Access:** Direct download as `gplates_2.5.0_geodata.zip` (~500 MB)
-- **Update frequency:** Tied to GPlates releases (roughly annual)
+- **Access:** Direct download as `gplates_2.5.0_geodata.zip` (~500 MB) from Zenodo or EarthByte
+- **Update frequency:** Tied to GPlates releases (~annual)
+- **Citation:** Zahirovic et al. (2024), Zenodo record 14194897
 
 ### Five Towns Coverage
-The Five Towns sit on the boundary between the Eurasian and North Atlantic tectonic plates. GPlates provides:
-- Plate boundary polygons (useful for macro-scale geological context)
-- Paleogeographic reconstructions (ancient coastlines, mountain ranges)
-- Does NOT provide detailed surface geology (rock types, strata) — that's BGS territory
+- **Tectonic plate position:** Five Towns sit on the stable interior of the Eurasian Plate, near the boundary with the North Atlantic plate (mid-Atlantic ridge). The GPlates dataset provides global plate boundary polygons including the Mid-Atlantic Ridge system.
+- **Paleogeography:** Reconstructions show the Britain archipelago was part of the larger European landmass during various geological periods. The area's position relative to the Tethys Sea and later Atlantic rifting is well represented.
+- **Does NOT provide:** Detailed surface geology (rock types, strata) — that's BGS territory.
+
+### API Access
+- **No programmatic API** — direct download only
+- Download URL: `https://zenodo.org/records/14194897/files/gplates_2.5.0_geodata.zip`
+- Note: Zenodo returned 403 for automated fetch during research (rate limiting). Alternative: EarthByte download page (https://www.earthbyte.org/download-gplates-2-5/)
+- Data is static (~annual updates), so one-time download is sufficient
 
 ### Integration Complexity: 3/5
 - Requires download + unzip (~500 MB)
-- Vector layers loadable in QGIS directly
+- Vector layers loadable directly in QGIS
 - GeoJSON conversion via GDAL/OGR for pipeline ingestion
-- No API — manual download, but data is static
+- No API — manual download, but data is static (acceptable)
+- Recommended: download once, cache locally, re-use across all phases
 
-### Recommendation
-**Primary source for tectonic plate layer.** Use for understanding the macro geological context. The CC-BY license is fully compatible with Place-Time's FOSS-at-heart principle.
+### Recommended Use
+**Primary source for tectonic plate geometry and paleogeographic reconstructions.** The CC-BY license is fully compatible with Place-Time's FOSS-at-heart principle. Use for macro geological context. For the Five Towns area specifically, the Eurasian Plate interior is the relevant feature — the plate boundary (Mid-Atlantic Ridge) is hundreds of km to the west in Iceland.
+
+### Human Actions Required
+- [ ] Download `gplates_2.5.0_geodata.zip` (~500 MB) from Zenodo or EarthByte
+- [ ] Unzip and inspect data structure
+- [ ] Extract UK-relevant tectonic plate polygons (Eurasian Plate, North Atlantic Plate)
+- [ ] Validate in QGIS — confirm plate boundaries pass through correct region
 
 ---
 
 ## 2. fraxen/tectonicplates (GitHub)
 
 **URL:** https://github.com/fraxen/tectonicplates  
-**Stars:** 167 | **License:** NOASSERTION → ODC-BY  
+**Stars:** 167 (as of 2026-05) | **License:** ODC-BY 1.0  
 **Last update:** October 2014 (static dataset)
 
 ### Details
-- **Format:** GeoJSON (single file per plate, also combined GeoJSON folder)
-- **Content:** Peter Bird's updated digital model of plate boundaries (2003 paper)
-- **License:** Originally listed as NOASSERTION; README states ODC-BY 1.0 (Open Data Commons Attribution License)
-- **Size:** ~5 MB total for all plates
-- **Access:** `git clone` or download zip (~5 MB)
+- **Format:** GeoJSON (single combined file: `tectonicplates.json`, ~5 MB)
+- **Content:** Peter Bird's updated digital model of world's plate boundaries (2003 paper)
+- **Size:** ~5 MB total for all plates (global coverage)
+- **Access:** Direct clone or download from GitHub (`git clone` or zip download)
+- **Data source:** Peter Bird, "An Updated Digital Model of Plate Boundaries", Geochemistry Geophysics Geosystems, 2003
 
 ### Five Towns Coverage
-- Contains Eurasian and North Atlantic plate boundary polygons
-- Five Towns fall near the plate boundary — data is relevant
-- Simple polygon geometry, no temporal reconstructions
+- Contains Eurasian Plate and North Atlantic Plate boundary polygons
+- Five Towns fall within the interior of the Eurasian Plate (NOT on an active boundary)
+- The plate boundary in the UK region runs through Iceland (Mid-Atlantic Ridge) — nowhere near West Yorkshire
+- This is actually correct: the UK sits on stable continental crust, not at a plate boundary
 
 ### Integration Complexity: 1/5
-- Easiest integration of all sources
+- Easiest integration of all geological sources
 - Direct GeoJSON — no format conversion needed
-- H3 cell assignment straightforward (single polygon's centroid → H3 cell)
-- Proven, stable dataset (no updates since 2014 — which is fine for geological time)
+- H3 cell assignment: plate polygon centroids map to H3 cells at res 7-8 trivially
+- Proven, stable dataset (no updates since 2014 — which is fine for geological time scale)
+- No API authentication required
 
-### Recommendation
-**First-choice for quick tectonic plate boundary layer.** Download is trivial, GeoJSON ingestion is native. The ODC-BY license is compatible with FOSS outputs. Use as the primary plate boundary source, GPlates as the authoritative fallback.
+### API Access
+- Direct download: `curl -L -o tectonicplates.json https://raw.githubusercontent.com/fraxen/tectonicplates/master/tectonicplates.json`
+- Or: `git clone https://github.com/fraxen/tectonicplates.git`
+- No rate limits, no authentication
+
+### Recommended Use
+**First-choice for quick tectonic plate boundary layer.** Download is trivial, GeoJSON ingestion is native. ODC-BY license is FOSS-compatible. Already partially ingested in project (`data/geology/tectonic_plates.geojson`). Use as the primary plate boundary source; GPlates provides the fallback/paleogeographic reconstruction layer.
+
+### Human Actions Required
+- [ ] Git clone or download tectonicplates.json (~5 MB)
+- [ ] Verify plate polygons for UK region in QGIS
+- [ ] Confirm Eurasian Plate interior covers Five Towns
 
 ---
 
-## 3. dhasterok/global_tectonics (GitHub)
+## 3. BGS OGC API (British Geological Survey)
+
+**URL:** https://ogcapi.bgs.ac.uk/ | **API Docs:** https://api.gov.uk/bgs/bgs-opengeoscience-ogcapi-server
+
+### Details
+- **Format:** OGCAPI (Open Geospatial Consortium API Standard), returns GeoJSON or GML
+- **Collections available:** 13 collections confirmed live:
+  - `bgsgeology625kbedrock` — Bedrock geology 1:625k (key collection for Five Towns)
+  - `bgsgeology625ksuperficial` — Superficial deposits (glacial, river terrace)
+  - `bgsgeology625kfaults` — Fault structures
+  - `bgsgeology625kdykes` — Dyke swarms
+  - `scanned-maps-1m`, `scanned-maps-500k`, `scanned-maps-250k` — Historical map scans
+  - `aeromag` — Aeromagnetic survey data
+  - `historicalearthquakes`, `recentearthquakes` — Earthquake locations
+  - `onshoreboreholeindex`, `agsboreholeindex` — Borehole records
+  - `landslideindex` — Landslide database
+- **License:** Open Government Licence (OGL) for all collections
+- **Access:** Direct REST API, no authentication required
+- **Rate limits:** Not published; BETA status means expect potential changes
+
+### Five Towns Coverage — Confirmed Excellent
+BGS 1:625k Bedrock coverage for Five Towns:
+- **Yorkshire Coal Measures** (Carboniferous) — underlying Pontefract, Knottingley, Featherstone, Castleford
+- **Pennine Lower Coal Measures** — eastern parts
+- **Permian Upper Magnesian Limestone** — outcrops east of the Five Towns (scarp forming the escarpment)
+- **Glacial Till** (Quaternary) — superficial deposits in river valleys (Aire Valley)
+
+Key collections for Five Towns:
+| Collection | Description | Five Towns Relevance |
+|---|---|---|
+| `bgsgeology625kbedrock` | 1:625k bedrock map | Primary — Carboniferous coal measures |
+| `bgsgeology625ksuperficial` | 1:625k superficial deposits | Glacial till in valleys |
+| `bgsgeology625kfaults` | Fault structures | Any known faults in area? |
+
+### API Access Methods
+
+**List all collections:**
+```
+GET https://ogcapi.bgs.ac.uk/collections
+```
+Returns JSON with all 13 collections.
+
+**Get bedrock features in Five Towns bounding box:**
+```
+GET https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock/items?bbox=-1.55,53.58,-1.22,53.78&limit=100
+```
+Returns GeoJSON FeatureCollection of bedrock geology within bbox (west,south,east,north).
+
+**Get as GeoJSON (preferred format):**
+```
+GET https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock/items.json?bbox=-1.55,53.58,-1.22,53.78&limit=100
+```
+
+**Pagination:** Use `offset` parameter for large result sets.
+
+### Integration Complexity: 2/5
+- Standard OGCAPI — GeoJSON output is pipeline-compatible
+- Requires bbox filtering for Five Towns area to avoid large downloads
+- BETA means endpoints may change — document this risk in pipeline
+- Coordinate system: BGS data often in EPSG:27700 British National Grid — requires transformation to WGS84 (EPSG:4326) for H3 indexing
+- No authentication, no API keys required
+
+### Key Endpoint Details
+
+| Endpoint | Purpose |
+|---|---|
+| `https://ogcapi.bgs.ac.uk/collections` | List all collections |
+| `https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock` | Bedrock collection info |
+| `https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock/items.json?bbox=...` | GeoJSON feature fetch |
+| `https://ogcapi.bgs.ac.uk/collections/bgsgeology625ksuperficial/items.json?bbox=...` | Superficial deposits |
+
+### Recommended Use
+**Essential for UK geological detail.** This is the only source providing rock-type/strata information. The OGL license is fully FOSS-compatible. Budget: £0 (free at current usage levels, no auth required). If usage exceeds fair use, BGS offers paid API access.
+
+### Human Actions Required
+- [ ] Test BGS OGC API connectivity: `curl https://ogcapi.bgs.ac.uk/collections | jq`
+- [ ] Fetch bedrock features for Five Towns bbox
+- [ ] Validate in QGIS — confirm Yorkshire Coal Measures shown under Pontefract
+- [ ] Transform coordinates if needed (BNG EPSG:27700 → WGS84 EPSG:4326)
+- [ ] Check for any known faults in the Five Towns area
+
+---
+
+## 4. dhasterok/global_tectonics (GitHub)
 
 **URL:** https://github.com/dhasterok/global_tectonics  
-**Stars:** 163 | **License:** Custom (see README)
+**Stars:** 163 | **License:** Custom (see README — requires checking)
 
 ### Details
 - **Format:** QGIS project file (QML) + associated data files
@@ -102,56 +203,23 @@ The Five Towns sit on the boundary between the Eurasian and North Atlantic tecto
 - QGIS project dependency makes automated ingestion harder
 
 ### Recommendation
-**Defer to Phase 1 or 2.** Good data quality, but integration overhead is high. Useful if Phase 1 geological layer needs more detail than fraxen plates provide. Flagged as "good to have" but not "required for MVP."
-
----
-
-## 4. BGS (British Geological Survey) OGC API
-
-**URL:** https://ogcapi.bgs.ac.uk/  
-**Documentation:** https://api.gov.uk/bgs/bgs-opengeoscience-ogcapi-server
-
-### Details
-- **Format:** OGCAPI (Open Geospatial Consortium API), returns GeoJSON/GML
-- **Content:** Various BGS datasets including:
-  - Geology (Superficial deposits, Bedrock)
-  - Faults and structures
-  - Boreholes
-  - Lexicon (rock classification)
-- **License:** Open Government Licence (OGL) for most datasets
-- **Access:** Direct REST API, no authentication required
-- **Rate limits:** Not published, but BETA status means expect changes
-
-### Five Towns Coverage
-**Excellent.** BGS has 1:50,000 scale bedrock geology for West Yorkshire. Specifically:
-- **Carboniferous Middle Coal Measures** underlie Pontefract area
-- **Permian Upper Magnexian Limestone** outcrops to the east
-- **Glacial deposits** cover lowland areas
-
-### Integration Complexity: 2/5
-- Standard OGCAPI — GeoJSON output is pipeline-compatible
-- Requires API exploration to find correct collection endpoints
-- BETA means endpoints may change (document this risk)
-- Need to handle projection (BGS data often in EPSG:27700 British National Grid, requires transformation to WGS84 for H3 indexing)
-
-### Recommendation
-**Essential for UK geological detail.** This is the only source providing the rock-type/strata information needed for the geological base layer. The OGL license is fully FOSS-compatible. Budget: £0 (free at current usage levels). If usage becomes high-volume, consider BGS paid API.
+**Defer to Phase 1 or 2.** Good data quality, but integration overhead is high. Useful if Phase 1 geological layer needs more detail than fraxen plates or BGS provide. Flagged as "good to have" but not "required for MVP."
 
 ---
 
 ## 5. USGS (United States Geological Survey)
 
-**URL:** https://www.usgs.gov/centers/national-geospatial-program
+**URL:** https://www.usgs.gov/centers/national-geospatial-program  
+**License:** Public Domain
 
 ### Details
 - **Format:** Various (Shapefile, GeoJSON, GeoTIFF)
 - **Content:** Global geological data, but US-focused in coverage
-- **License:** Public Domain
 - **Access:** Direct download + API (for some datasets)
 
 ### Five Towns Coverage
 Limited for UK-specific geology. USGS covers:
-- Global tectonic plate boundaries (similar to fraxen)
+- Global tectonic plate boundaries (similar to fraxen, but more American data)
 - US geology in great detail
 - International geology at coarse scales only
 
@@ -163,12 +231,12 @@ Limited for UK-specific geology. USGS covers:
 ## 6. Natural Earth
 
 **URL:** https://naturalearthdata.com/  
-**Scales:** 1:10m, 1:50m, 1:110m
+**Scales:** 1:10m, 1:50m, 1:110m  
+**License:** Public Domain
 
 ### Details
 - **Format:** Shapefile, GeoJSON (vector); GeoTIFF (raster)
 - **Content:** Cultural, physical, and raster base layers
-- **License:** Public Domain (no restrictions)
 - **Size:** ~1 GB for full vector set
 
 ### Five Towns Coverage
@@ -181,44 +249,83 @@ Natural Earth is designed for small-scale cartography (country/regional level). 
 
 ## Summary: Recommended Geological Layer Stack
 
-| Priority | Source | Layer | License | Integration Effort |
-|----------|--------|-------|---------|-------------------|
-| 1 | fraxen/tectonicplates | Tectonic plate boundaries (global) | ODC-BY | Low (direct GeoJSON) |
-| 2 | BGS OGC API | UK bedrock/superficial geology | OGL | Medium (API + projection) |
-| 3 | GPlates 2.5 GeoData | Paleogeographic reconstructions | CC-BY | Medium (download + convert) |
-| 4 | dhasterok/global_tectonics | Geological provinces | Custom | High (QGIS project extraction) |
+| Priority | Source | Layer | License | Integration Effort | Five Towns Quality |
+|----------|--------|-------|---------|-------------------|---------------------|
+| 1 | fraxen/tectonicplates | Tectonic plate boundaries (global) | ODC-BY | 1/5 (low) | Adequate (UK on stable plate interior) |
+| 2 | BGS OGC API | UK bedrock/superficial geology | OGL | 2/5 (medium) | Excellent (1:625k, confirmed live) |
+| 3 | GPlates 2.5 GeoData | Paleogeographic reconstructions | CC-BY | 3/5 (medium) | Good (tectonic plates, continental positions) |
+| 4 | dhasterok/global_tectonics | Geological provinces | Custom | 4/5 (high) | Good (research grade) — defer |
+| 5 | USGS | Global backup | Public Domain | 3/5 (medium) | Adequate (not UK-priority) |
+| 6 | Natural Earth | Background base map | Public Domain | 1/5 (low) | Coarse only — context only |
 
 ### Budget Implications
 - **£0** for all geological sources — all are free at appropriate usage levels
 - BGS API usage at <1000 requests/month is free under OGL
+- fraxen/tectonicplates is a one-time ~5 MB download
+- GPlates is a one-time ~500 MB download
 - If geological data needs exceed OGL fair use, BGS offers paid API access
 
 ### Integration Dependencies
 - fraxen/tectonicplates: immediate ingestion, no preprocessing
-- BGS OGC API: requires API endpoint discovery, coordinate transformation (BNG→WGS84)
-- GPlates: requires download (~500 MB), GDAL conversion for pipeline
+- BGS OGC API: requires API endpoint discovery, bbox filtering, coordinate transformation (BNG→WGS84)
+- GPlates: requires download (~500 MB), GDAL conversion for pipeline, one-time only
 - dhasterok/global_tectonics: defer to Phase 1-2 based on pipeline maturity
 
 ---
 
-## Five Towns Specific Notes
+## Five Towns Specific Geological Notes
 
 ### Known Geology (for validation)
-- **Yorkshire Coal Measures** (Carboniferous) — underlying Pontefract, Knottingley, Featherstone
-- **Pennine Lower Coal Measures** — Castleford area
-- **Permian Upper Magnesian Limestone** — forming the scarp east of the Five Towns
-- **Glacial Till** — superficial deposits in river valleys
+| Formation | Period | Description | Five Towns Coverage |
+|---|---|---|---|
+| **Yorkshire Coal Measures** | Carboniferous (Pennsylvanian) | Coal seams, sandstone, mudstone | Underlies Pontefract, Knottingley, Featherstone, Castleford |
+| **Pennine Lower Coal Measures** | Carboniferous | Lower seams | Eastern parts |
+| **Permian Upper Magnesian Limestone** | Permian | Limestone escarpment | Forms scarp east of Five Towns |
+| **Glacial Till** | Quaternary | Boulder clay, glacial deposits | Valley bottoms (Aire Valley) |
+| **River Terrace Deposits** | Quaternary | Sand and gravel | Modern floodplains |
 
 ### Tectonic Context
 - Five Towns sit on the stable interior of the London-Brabant Massif (part of Eurasian Plate)
-- Not on an active plate boundary — but proximity to the North Atlantic/Eurasian plate boundary (mid-Atlantic ridge) is geologically interesting
+- NOT on an active plate boundary — the Mid-Atlantic Ridge is in Iceland, hundreds of km to the west
 - The area has been tectonically quiet for ~50 million years (post-Cretaceous)
+- No significant seismic hazard for the Five Towns
 
-### BGS Data to Request
-Endpoint: `https://ogcapi.bgs.ac.uk/collections/`
-Key collections for Five Towns:
-- `bedrock Geology` (1:50k scale, EPSG:27700)
-- `superficial deposits` (glacial, river terrace deposits)
-- `structures` (faults, if any in area)
+### Data Quality Assessment for Five Towns
+| Source | Five Towns Coverage Detail | Confidence |
+|--------|---------------------------|------------|
+| fraxen/tectonicplates | Plate boundary is in Iceland, not near Five Towns — data is adequate | High |
+| BGS OGC API (bedrock) | 1:625k shows Carboniferous Coal Measures under Five Towns | High |
+| BGS OGC API (superficial) | Shows glacial deposits in valleys | High |
+| GPlates 2.5 | Continental positions for geological periods | Medium |
 
 ---
+
+## Critical Validation Points for QGIS
+
+1. **Load fraxen tectonic plates** — verify Eurasian Plate covers UK correctly
+2. **Query BGS bedrock** for bbox `-1.55, 53.58, -1.22, 53.78` — confirm Coal Measures polygons visible
+3. **Query BGS superficial** — confirm glacial till in river valleys
+4. **Check coordinate systems** — verify WGS84 transformation works correctly
+5. **Compare with known geology** — Pontefract Castle sits on Carboniferous sandstone, confirm in data
+
+---
+
+## API Quick Reference
+
+```bash
+# Test BGS OGC API
+curl "https://ogcapi.bgs.ac.uk/collections" | jq
+
+# Fetch bedrock for Five Towns bbox
+curl "https://ogcapi.bgs.ac.uk/collections/bgsgeology625kbedrock/items.json?bbox=-1.55,53.58,-1.22,53.78&limit=100" | jq
+
+# Fetch superficial deposits
+curl "https://ogcapi.bgs.ac.uk/collections/bgsgeology625ksuperficial/items.json?bbox=-1.55,53.58,-1.22,53.78&limit=50" | jq
+
+# Download fraxen tectonic plates
+curl -L -o data/geology/tectonicplates.json https://raw.githubusercontent.com/fraxen/tectonicplates/master/tectonicplates.json
+```
+
+---
+
+*Last updated: 2026-05-18. Next review: After Phase 1 decision gate.*

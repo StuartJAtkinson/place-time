@@ -92,13 +92,109 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
   infoBox: false as unknown as boolean,
 } as unknown as Cesium.Viewer.ConstructorOptions);
 
-viewer.imageryLayers.addImageryProvider(
-  new Cesium.UrlTemplateImageryProvider({
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    credit: 'Â© OpenStreetMap contributors',
-    maximumLevel: 19,
-  })
-);
+// ---------------------------------------------------------------------------
+// Era-based imagery
+//
+// Geological eras  → GPlates Web Service GeoJSON (reconstructed coastlines, vector)
+//   Loaded as a GeoJsonDataSource with ArcType.NONE (no subdivision, no crash).
+//   Globe baseColor is set to ocean blue; land polygons sit on top.
+//   Model selection:
+//     CAO2024   covers 0–1800 Ma  (Archean / deep Proterozoic)
+//     PALEOMAP  covers 0–750 Ma   (Phanerozoic — better for Cambrian+)
+//
+// Historical eras  → ESRI World Physical (terrain, no modern labels)
+// Modern (≥1800 CE)→ OpenStreetMap
+// ---------------------------------------------------------------------------
+const OCEAN_BLUE = Cesium.Color.fromCssColorString('#1a4f7a');
+const GLOBE_DARK = Cesium.Color.fromCssColorString('#060608');
+
+function gplatesConfigForYear(year: number): { ageMa: number; model: string } | null {
+  if (year >= -10_000) return null;                         // recent — use raster tile
+  const ageMa = Math.max(1, Math.round(-year / 1_000_000));
+  if (ageMa > 1800) return null;                            // older than CAO2024 range
+  return { ageMa, model: ageMa > 750 ? 'CAO2024' : 'PALEOMAP' };
+}
+
+// Geological eras: GeoJSON vector DataSource (infinitely scalable, no raster blur).
+// ArcType.GEODESIC avoids the computeRhumbLineSubdivision crash (RHUMB is the
+// GeoJsonDataSource default). Outline is disabled so PolygonOutlineGeometry
+// (which rejects GEODESIC for complex shapes) is never instantiated.
+// Historical / modern: raster imagery tiles (ESRI Physical or OSM).
+const _dsCache = new Map<string, Cesium.GeoJsonDataSource>();
+let _activeDs: Cesium.GeoJsonDataSource | null = null;
+let _activeLayer: Cesium.ImageryLayer | null = null;
+let _activeKey = '';
+
+async function updateImageryForYear(year: number): Promise<void> {
+  const gp = gplatesConfigForYear(year);
+  const key = gp ? `gp:${gp.ageMa}:${gp.model}` : year < 1800 ? 'esri' : 'osm';
+
+  if (key === _activeKey) return;
+  _activeKey = key;  // set before any await — deduplicates rapid era changes
+
+  // Clear previous state
+  if (_activeDs) { _activeDs.show = false; _activeDs = null; }
+  if (_activeLayer) { viewer.imageryLayers.remove(_activeLayer, true); _activeLayer = null; }
+
+  if (gp) {
+    // ── Geological: vector land polygons on a blue globe ──────────────────
+    viewer.scene.globe.baseColor = OCEAN_BLUE;
+
+    if (_dsCache.has(key)) {
+      _activeDs = _dsCache.get(key)!;
+      _activeDs.show = true;
+      return;
+    }
+
+    const url = `https://gws.gplates.org/reconstruct/coastlines` +
+      `?time=${gp.ageMa}&model=${gp.model}`;
+    try {
+      const ds = await Cesium.GeoJsonDataSource.load(url, {
+        fill: Cesium.Color.fromCssColorString('#2d8a4e').withAlpha(0.95),
+        stroke: Cesium.Color.fromCssColorString('#2d8a4e'),
+        strokeWidth: 0.5,
+        clampToGround: false,
+      } as any);
+
+      if (_activeKey !== key) return;  // superseded while fetching
+
+      // GEODESIC avoids the computeRhumbLineSubdivision crash (RHUMB is the default
+      // and is what was failing). Outline is disabled so PolygonOutlineGeometry is
+      // never constructed — it has stricter arcType validation.
+      for (const entity of ds.entities.values) {
+        if (entity.polygon) {
+          (entity.polygon as any).arcType =
+            new Cesium.ConstantProperty(Cesium.ArcType.GEODESIC);
+          (entity.polygon as any).outline =
+            new Cesium.ConstantProperty(false);
+        }
+      }
+
+      viewer.dataSources.add(ds);
+      _dsCache.set(key, ds);
+      _activeDs = ds;
+
+    } catch { /* network failure — leave blue globe empty */ }
+
+  } else {
+    // ── Raster: ESRI Physical (pre-1800) or OSM (modern) ─────────────────
+    viewer.scene.globe.baseColor = GLOBE_DARK;
+    _activeLayer = viewer.imageryLayers.addImageryProvider(
+      key === 'osm'
+        ? new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            credit: '© OpenStreetMap contributors',
+            maximumLevel: 19,
+          })
+        : new Cesium.UrlTemplateImageryProvider({
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}',
+            credit: 'Esri, Natural Earth, USGS',
+            maximumLevel: 8,
+          })
+    );
+  }
+}
+
 
 viewer.scene.globe.translucency.enabled = true;
 viewer.scene.globe.translucency.frontFaceAlpha = 1.0;
@@ -109,12 +205,25 @@ viewer.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
 viewer.scene.screenSpaceCameraController.maximumZoomDistance = 1e9;
 viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
 
+// Pitch hard limits: no shallower than 20° from horizontal, no past nadir.
+// Must restore position too — tilt pivots around a focal point so position
+// changes alongside pitch, and clamping angle alone leaves the camera displaced.
+const PITCH_MAX = -(Math.PI * 20) / 180; // 20° below horizontal
+const PITCH_MIN = -Math.PI / 2;
+let _validCam = {
+  position: viewer.camera.position.clone(),
+  heading:  viewer.camera.heading,
+  pitch:    viewer.camera.pitch,
+};
 viewer.scene.postRender.addEventListener(() => {
-  if (viewer.camera.pitch > -Math.PI / 4) {
+  const p = viewer.camera.pitch;
+  if (p > PITCH_MAX || p < PITCH_MIN) {
     viewer.camera.setView({
-      destination: viewer.camera.position.clone(),
-      orientation: { heading: viewer.camera.heading, pitch: -Math.PI / 4, roll: 0 },
+      destination: _validCam.position.clone(),
+      orientation: { heading: _validCam.heading, pitch: _validCam.pitch, roll: 0 },
     });
+  } else {
+    _validCam = { position: viewer.camera.position.clone(), heading: viewer.camera.heading, pitch: p };
   }
 });
 
@@ -122,11 +231,13 @@ viewer.camera.setView({
   destination: Cesium.Cartesian3.fromDegrees(-1.31, 53.4, 150_000),
   orientation: { heading: 0, pitch: Cesium.Math.toRadians(-50), roll: 0 },
 });
+// Re-seed _validCam from the actual post-setView position (initial pitch -50° is valid).
+_validCam = { position: viewer.camera.position.clone(), heading: viewer.camera.heading, pitch: viewer.camera.pitch };
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const WIRE_COLOR = Cesium.Color.WHITE.withAlpha(0.45);
+const WIRE_COLOR = Cesium.Color.WHITE.withAlpha(0.75);
 const WIRE_WIDTH = 1.6;
 const WIRE_HEIGHT = 100;
 const MAX_CELLS = 3_000;
@@ -204,7 +315,6 @@ class DynamicHexGrid {
   private computeVisible(resolution: number): string[] {
     const alt = this.scene.camera.positionCartographic.height;
     if (estimateCellCount(resolution, alt) > MAX_CELLS) return [];
-
     if (resolution <= 2) {
       const res0 = getRes0Cells();
       return resolution === 0 ? [...res0] : res0.flatMap(r0 => cellToChildren(r0, resolution));
@@ -552,6 +662,8 @@ function setYear(y: number): void {
   viewer.scene.backgroundColor = preEarth ? Cesium.Color.BLACK : Cesium.Color.fromCssColorString('#060608');
 
   viewer.scene.globe.translucency.enabled = preEarth;
+
+  if (!preEarth) updateImageryForYear(y).catch(() => {});
 
   deselect();
 

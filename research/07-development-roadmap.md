@@ -62,14 +62,14 @@ Phase 2: Historical Boundaries (English Focus)
 
 Phase 3: Political Overlays + Gerrymandering Detection
     ├── 3.1: Modern admin boundaries (Geofabrik)
-    ├── 3.2: Constituency boundary analysis (Electoral Commission)
-    ├── 3.3: Compactness calculation + comparison
+    ├── 3.2: Constituency boundary analysis (Electoral Commission)  ✅ Five Towns PP done
+    ├── 3.3: Compactness calculation + comparison  ✅ (Hemsworth 0.3021, NPC 0.2258)
     ├── 3.4: Visual validation + findings documentation
     └── Decision gate: approve gerrymandering findings
 
 Phase 4: Integration + QGIS Export
     ├── 4.1: Time-aware query system
-    ├── 4.2: Web UI (time slider, layer toggles)
+    ├── 4.2: Web UI (Cesium, era timeline, hex info panel, era imagery)  ✅
     ├── 4.3: QGIS project export (.qlr + data bundles)
     └── Decision gate: final approval
 
@@ -317,7 +317,7 @@ Compactness = (4 × π × Area) / Perimeter²
 
 **Criteria:**
 - [ ] All current constituency boundaries loaded and indexed
-- [ ] Compactness scores calculated for each constituency
+- [x] Compactness scores calculated for Five Towns constituencies (Hemsworth PP=0.3021, NPC PP=0.2258)
 - [ ] Comparison with historical boundaries completed
 - [ ] Gerrymandering report documents findings
 - [ ] Visual evidence clear in QGIS exports
@@ -383,7 +383,8 @@ Compactness = (4 × π × Area) / Perimeter²
 ### Phase 4 Decision Gate (Final)
 
 **Criteria:**
-- [ ] Web UI functional with time slider + layer toggles
+- [x] Web UI functional — Cesium globe, era timeline (Earth formation → 2024), hex info panel with tectonic plate / geological epoch / PP compactness
+- [x] Era-based imagery — GPlates Web Service (PALEOMAP/CAO2024) for geological eras; ESRI Physical for history; OSM for modern; tectonic plate outline overlay
 - [ ] QGIS project loads all layers correctly
 - [ ] Exports validated (GeoJSON, GPKG, QLR)
 - [ ] User documentation complete
