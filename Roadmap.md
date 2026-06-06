@@ -345,7 +345,7 @@ Compactness = (4 × π × Area) / Perimeter²
 **Goal:** Local web application with 3D globe, time slider, layer toggles
 
 #### Steps
-1. Confirm existing Cesium globe UI works: `npm run dev` → http://localhost:5173
+1. Confirm existing Cesium globe UI works: `npm run dev` → http://localhost:5175
 2. Verify era buttons (Deep Time + History)
 3. Verify time slider (0–2024)
 4. Verify hex info panel with tectonic plate / geological epoch / Polsby-Popper compactness
@@ -403,7 +403,7 @@ The tectonic mesh (`public/tectonic-mesh.json`, 36 MB) has been generated with 9
 | Task | What's needed | How |
 |------|--------------|-----|
 | **QGIS visual validation** | Open layers, verify alignment | QGIS: Layer > Add from Layer Definition File → `export/place-time-five-towns.qlr` |
-| **Cesium UI review** | Run `npm run dev`, open http://localhost:5173, check era buttons, time slider, tectonic deformation | Manual |
+| **Cesium UI review** | Run `npm run dev`, open http://localhost:5175, check era buttons, time slider, tectonic deformation | Manual |
 | **Tectonic deformation check** | Drag era slider from "Today" → "Pangea" and verify hexes deform toward correct plate positions | Manual in browser |
 | **Cliopatria temporal filter** | Verify polities appear/disappear correctly at right years in the CLI and UI | Manual + code |
 | **Westminster constituency labels** | The 3 constituencies show geographically — do they label correctly? | Manual in QGIS/UI |
@@ -509,7 +509,7 @@ Phase 7 → Phase 8 (global extension — optional gate)
 ## Key Commands
 
 ```bash
-npm run dev                                          # Cesium UI at localhost:5173
+npm run dev                                          # Cesium UI at localhost:5175
 npx tsx src/cli/query.ts --place pontefract --year 1086  # CLI query
 npm run ingest:geology                              # Ingest geological data
 npm run ingest:historical                           # Ingest historical data

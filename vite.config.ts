@@ -6,7 +6,7 @@ export default defineConfig({
   publicDir: 'public',
   plugins: [cesium()],
   server: {
-    port: 5173,
+    port: 5175,
     open: true,
   },
   build: {

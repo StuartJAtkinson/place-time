@@ -29,3 +29,4 @@ target/
 vendor/
 coverage/
 tmp/
+.gsd.migrating/

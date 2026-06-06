@@ -56,7 +56,7 @@ npm run ingest:all
 npm run query -- --place pontefract --year 1086
 
 # Start web UI (Cesium globe)
-npm run dev   # → http://localhost:5173
+npm run dev   # → http://localhost:5175
 
 # Generate QGIS project
 npm run build:qgis   # → export/place-time-five-towns.qlr
@@ -245,7 +245,7 @@ wget https://download.geofabrik.de/europe/united-kingdom-latest.shp.zip
 
 ```bash
 npm run dev
-# Opens Cesium web UI at http://localhost:5173
+# Opens Cesium web UI at http://localhost:5175
 ```
 
 ### Data Ingestion

@@ -32,7 +32,7 @@ npm run query -- --place castleford --year 2024
 npm run query -- --lat 53.693 --lng -1.310 --year 1350
 
 # Web UI (time slider + layer toggles + click-to-query)
-npm run dev   # → http://localhost:5173
+npm run dev   # → http://localhost:5175
 
 # Re-ingest data from sources
 npm run ingest:all
