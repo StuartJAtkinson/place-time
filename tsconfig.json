@@ -15,7 +15,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": ["node", "geojson"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "data", "scripts"]

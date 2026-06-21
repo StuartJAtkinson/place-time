@@ -4,7 +4,6 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import GeoJSON from 'geojson';
 import type { GeoFeature } from '../core/types.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));

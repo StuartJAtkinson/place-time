@@ -8,7 +8,6 @@ import { join } from 'path';
 export interface QlrLayerOptions {
   layer: Layer;
   dataPath: string; // relative path from .qlr to data file
-  crs?: string;
 }
 
 /**
@@ -17,7 +16,7 @@ export interface QlrLayerOptions {
  * allowing one-click project restore in QGIS.
  */
 export function generateQlrLayer(opts: QlrLayerOptions): string {
-  const { layer, dataPath, crs = 'EPSG:4326' } = opts;
+  const { layer, dataPath } = opts;
   const style: LayerStyle = (layer.style ?? defaultStyleForLayer(layer.id))!;
 
   if (!layer.features[0]) {
@@ -111,36 +110,3 @@ export function writeQlrFile(opts: QlrLayerOptions, outputPath: string): void {
   writeFileSync(outputPath, qlr, 'utf-8');
 }
 
-/**
- * Generate a QLR project file containing all registered layers.
- */
-export function generateQlrProject(layers: Layer[], dataDir: string, outputPath: string): void {
-  const projectLines = [`<?xml version="1.0" encoding="UTF-8"?>`];
-  projectLines.push(`<maplayers>`);
-
-  for (const layer of layers) {
-    const relPath = `data/${layer.id}.geojson`;
-    const qlr = generateQlrLayer({ layer, dataPath: relPath });
-    // Extract just the maplayer element
-    const match = qlr.match(/<maplayer[\s\S]*?<\/maplayer>/);
-    if (match) {
-      projectLines.push(match[0]);
-    }
-  }
-
-  projectLines.push(`</maplayers>`);
-
-  const projectXml = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE qgis-project>
-<qgis project version="3.38">
-  <layer-tree-group expanded="1" checked="Qt::PartiallyChecked" name="">
-${layers.map((l, i) => `    <layer-tree-layer ${i === 0 ? 'checked="Qt::Checked" ' : ''}id="${l.id}" name="${escapeXml(l.name)}" source="${escapeXml(`data/${l.id}.geojson`)}" providerKey="ogr"/>`).join('\n')}
-  </layer-tree-group>
-  <legend update="0">
-${layers.map((l, i) => `    <legendlayer open="true" checked="Qt::Checked" name="${escapeXml(l.name)}" drawingOrder="-1"><filegroup open="true" hidden="false"><legendlayerfile isInOverview="0" layerid="${l.id}" absScale="0" relScale="1"/></filegroup></legendlayer>`).join('\n')}
-  </legend>
-  ${projectLines.join('\n')}
-</qgis-project>`;
-
-  writeFileSync(outputPath, projectXml, 'utf-8');
-}

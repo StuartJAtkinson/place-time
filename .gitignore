@@ -1,5 +1,9 @@
 node_modules/
 dist/
+scripts/*.js
+scripts/*.d.ts
+scripts/*.d.ts.map
+scripts/*.js.map
 .cache/
 *.log
 .DS_Store
