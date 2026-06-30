@@ -34,3 +34,4 @@ vendor/
 coverage/
 tmp/
 .gsd.migrating/
+startStop.md

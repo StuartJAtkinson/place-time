@@ -23,7 +23,7 @@ Phase 1: 🔲 Hex Grid Calibration + Geological Base
 Phase 2: 🔲 Historical Boundaries (English Focus)
 Phase 3: 🔲 Political Overlays + Gerrymandering Detection
 Phase 4: 🔲 Integration + QGIS Export + Cesium Globe UI
-Phase 5: 🔲 Tectonic Back-Propagation Mesh (COMPLETE — needs validation)
+Phase 5: ✅ Tectonic Back-Propagation Mesh (built — needs human validation)
 Phase 6: 🔲 Human-in-loop Validation + Gerrymandering Analysis
 Phase 7: 🔲 Embedding Pipeline + Knowledge Layer
 Phase 8: 🔲 Global Extension (optional)
@@ -499,10 +499,12 @@ Phase 7 → Phase 8 (global extension — optional gate)
 1. **July 2024 constituency boundaries** — need to update from 2022 data to July 2024
 2. **OpenDomesday limitation** — points only, no polygon boundaries (mitigated by Cliopatria)
 3. **Cliopatria CC-BY-NC** — non-commercial use only; commercial use requires alternative
-4. **Big Bang button** — brief says 3D nebula/white-hole blob should replace globe at the Big Bang era; not implemented
-5. **Skybox** — Cesium default skybox should be black during pre-Earth eras; not implemented
-6. **Globe shapefiles per era** — continental reconstruction shapefiles for each era button not yet sourced/integrated
-7. **Phase 7 knowledge graph** — Stuart approval pending for Neo4j + Infranodus + Wikidata + BFO stack
+4. **Globe shapefiles per era** — continental reconstruction shapefiles for each era button not yet sourced/integrated
+5. **Phase 7 knowledge graph** — Stuart approval pending for Neo4j + Infranodus + Wikidata + BFO stack
+
+### Closed (verified against code 2026-06-12)
+- ~~**Big Bang button** (3D nebula/white-hole blob)~~ — obsolete by design decision: the Big Bang era button was removed (commit `9359726`); the geological timeline now starts at Earth formation.
+- ~~**Skybox black during pre-Earth eras**~~ — implemented in `src/ui/app.ts` `setYear()`: pre-Earth years hide the skybox and globe and set a black background.
 
 ---
 
@@ -520,3 +522,30 @@ npm run build:qgis                                  # Regenerate QGIS .qlr
 ---
 
 *Last updated: 2026-05-18 after Phase 0 research sprint complete. All research documents validated with current API status, confirmed data sources, and practical cell counts.*
+
+---
+
+## Portfolio alignment — provider chain for the Phase 7 embedding pipeline (FEATURE-MATRIX §A)
+
+- 🔲 **Build the Phase 7 `EmbeddingSearchPipeline` on the git-suite provider-chain model, not a bespoke Ollama call.** The scaffold in `H:\GitHub\place-time\src\core\hexalog.ts` (`EmbeddingSearchPipeline.searchSource()`) is a placeholder hardwired to a local Ollama model. The canonical multi-provider pattern is git-suite's: `H:\GitHub\git-suite\ui\backend\services\embeddings.py` (+ `services\llm.py`, `llm_providers.py`) — hardcoded call-URL per provider, **live model fetch**, deterministic fallback. **Why:** Phase 7's "Stuart approval for Neo4j + Infranodus + Wikidata + BFO" gate is the right moment to also pick the embedding provider model; reusing git-suite's chain means Ollama becomes one configured provider with failover rather than the only path. **What to delete:** the single-Ollama assumption in the scaffold. This pairs with the Phase 7 knowledge-graph decision gate above.
+- 🔲 **Clustering (FEATURE-MATRIX §B):** the embedding pipeline's boundary-discovery clustering should reuse git-suite's vector approach — `H:\GitHub\git-suite\ui\backend\services\cluster.py` (embedding + cosine + union-find) — rather than a bespoke similarity pass. Same code path as the provider-chain note above: embeddings come from the chain, clustering reuses git-suite's union-find.
+
+---
+
+## Portfolio alignment — map-suite seed; share Overpass with heart-on-a-sleeve (FEATURE-MATRIX §I)
+
+place-time is the portfolio's canonical for **H3 spatial indexing + temporal layering
++ multi-source geo ingestion**. Source: `H:\GitHub\place-time\src\core\hexalog.ts`,
+`H:\GitHub\place-time\src\ingest\{geology,historical,boundaries}.ts` (historical.ts
+holds the Overpass client).
+
+The sibling canonical is heart-on-a-sleeve for **OSM→SVG/STL rendering + Cesium
+selection + cosLat projection** (`H:\GitHub\heart-on-a-sleeve\backend\app\services\
+osm_fetcher.py`, `svg_generator.py`). git-suite PLAN.md already plans to fold
+place-time into a `map-suite` hub — **these two repos are that seed.**
+
+**Caveat (real):** place-time is TypeScript, heart-on-a-sleeve is Python, so there is
+no literal shared import today. What to share now: the **Overpass query templates** and
+the **cosLat projection math** as a documented spec both copy from, not two
+independently-tuned versions. When `map-suite` is built, pick one runtime and make the
+Overpass client + cosLat helper first-class there; this repo owns the H3/temporal half.
